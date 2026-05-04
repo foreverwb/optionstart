@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+websockets
+moomoo-api
+redis
+sqlalchemy
+pydantic
+pydantic-settings

@@ -356,6 +356,251 @@ input[type=range]::-webkit-slider-thumb{
   z-index:999;opacity:0;pointer-events:none;transition:.25s all;box-shadow:var(--shadow);
 }
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ═══ LEG CONTEXT POPUP ══════════════════════════════════ */
+#leg-popup{
+  position:fixed;z-index:500;background:var(--surface);
+  border:1px solid var(--border2);border-radius:var(--r12);
+  box-shadow:var(--shadow-lg);width:272px;display:none;overflow:hidden;
+}
+#leg-popup.open{display:block;animation:fadeUp .15s ease}
+.lp-header{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:11px 14px;background:var(--surface2);border-bottom:1px solid var(--border);
+  font-family:var(--mono);font-size:13px;font-weight:700;color:var(--t0);
+}
+.lp-close{font-size:18px;color:var(--t2);cursor:pointer;padding:0 4px;border-radius:4px;line-height:1}
+.lp-close:hover{background:var(--surface3);color:var(--t0)}
+.lp-top-row{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid var(--border)}
+.lp-top-cell{padding:9px 14px}
+.lp-top-cell:first-child{border-right:1px solid var(--border)}
+.lp-top-lbl{font-size:11px;color:var(--t2);display:flex;align-items:center;gap:5px;margin-bottom:5px}
+.lp-chain{font-size:13px;cursor:pointer;transition:.1s opacity;line-height:1}
+.lp-chain.linked{color:var(--blue)}
+.lp-chain.unlinked{color:var(--t3);opacity:.6}
+.lp-qty-ctrl{display:flex;align-items:center;gap:8px}
+.lp-qty-btn{
+  width:24px;height:24px;border-radius:50%;background:var(--surface3);
+  border:1px solid var(--border2);font-size:14px;font-weight:700;color:var(--t1);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.1s all;flex-shrink:0;
+}
+.lp-qty-btn:hover{background:var(--blue-bg);color:var(--blue);border-color:var(--blue-b)}
+.lp-qty-num{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--t0);min-width:22px;text-align:center}
+.lp-price-val{font-family:var(--mono);font-size:21px;font-weight:700;color:var(--t0)}
+.lp-data-grid{display:grid;grid-template-columns:1fr 1fr}
+.lp-data-cell{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:7px 14px;border-bottom:1px solid var(--border);
+}
+.lp-data-cell:nth-child(odd){border-right:1px solid var(--border)}
+.lp-data-lbl{font-size:11px;color:var(--t1)}
+.lp-data-val{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--t0)}
+.lp-data-val.green{color:var(--green-t)}
+.lp-data-val.red{color:var(--red-t)}
+.lp-actions{display:flex;flex-direction:column}
+.lp-action{
+  display:flex;align-items:center;gap:10px;padding:10px 16px;
+  font-size:13px;font-weight:500;color:var(--t0);background:transparent;
+  border-bottom:1px solid var(--border);text-align:left;width:100%;cursor:pointer;transition:.1s background;
+}
+.lp-action:last-child{border-bottom:none}
+.lp-action:hover{background:var(--surface2)}
+.lp-action.act-switch{color:var(--green-t)}
+.lp-action.act-switch:hover{background:var(--green-bg)}
+.lp-action.act-danger{color:var(--red-t)}
+.lp-action.act-danger:hover{background:var(--red-bg)}
+.lp-act-ico{font-size:14px;width:20px;text-align:center;flex-shrink:0}
+/* Expiry mini picker inside popup */
+.lp-exp-picker{
+  display:none;flex-wrap:wrap;gap:4px;padding:10px 14px;
+  border-top:1px solid var(--border);background:var(--surface2);max-height:100px;overflow-y:auto;
+}
+.lp-exp-picker.open{display:flex}
+.lp-exp-opt{
+  padding:3px 8px;border-radius:var(--r6);font-size:11px;font-family:var(--mono);
+  border:1px solid var(--border2);color:var(--t1);background:var(--surface);cursor:pointer;transition:.1s;
+}
+.lp-exp-opt:hover{background:var(--blue-bg);color:var(--blue);border-color:var(--blue-b)}
+.lp-exp-opt.cur{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+/* ═══ TOPBAR ACTION BUTTONS ══════════════════════════════ */
+.topbar-div{width:1px;height:22px;background:var(--border);flex-shrink:0;margin:0 2px}
+.btn-act{
+  display:flex;align-items:center;gap:5px;
+  padding:6px 12px;background:var(--blue);color:#fff;
+  border-radius:var(--r8);font-size:12px;font-weight:600;
+  cursor:pointer;border:none;
+  transition:.12s all;white-space:nowrap;flex-shrink:0;
+}
+.btn-act:hover{background:var(--blue-t)}
+.btn-act-ico{font-size:13px;line-height:1;flex-shrink:0}
+.act-badge{
+  background:rgba(255,255,255,.25);border-radius:20px;
+  padding:0 5px;font-size:10px;font-weight:700;min-width:16px;text-align:center;line-height:16px;
+}
+
+/* ═══ SAVE POPOVER ═══════════════════════════════════════ */
+#save-pop{
+  position:fixed;z-index:700;background:var(--surface);
+  border:1px solid var(--border2);border-radius:var(--r12);
+  box-shadow:var(--shadow-lg);width:288px;display:none;overflow:hidden;
+}
+#save-pop.open{display:block;animation:fadeUp .15s ease}
+.sp-hd{
+  padding:12px 16px;border-bottom:1px solid var(--border);
+  font-size:13px;font-weight:700;color:var(--t0);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.sp-hd-close{font-size:18px;color:var(--t2);cursor:pointer;padding:0 3px;border-radius:3px;line-height:1}
+.sp-hd-close:hover{background:var(--surface3);color:var(--t0)}
+.sp-body{padding:14px;display:flex;flex-direction:column;gap:9px}
+.sp-lbl{font-size:11px;font-weight:600;color:var(--t1);letter-spacing:.03em}
+.sp-input{
+  width:100%;background:var(--surface2);border:1.5px solid var(--border2);
+  border-radius:var(--r8);padding:7px 10px;font-family:var(--mono);
+  font-size:12px;color:var(--t0);transition:.15s border-color;
+}
+.sp-input:focus{border-color:var(--blue);outline:none}
+.sp-meta{font-size:10px;color:var(--t3);font-family:var(--mono);margin-top:-4px}
+.sp-divider{height:1px;background:var(--border);margin:2px 0}
+.sp-btn-primary{
+  width:100%;padding:8px;background:var(--blue);color:#fff;
+  border-radius:var(--r8);font-size:12px;font-weight:600;cursor:pointer;
+  border:none;transition:.12s;
+}
+.sp-btn-primary:hover{background:var(--blue-t)}
+.sp-btn-ghost{
+  width:100%;padding:7px;background:var(--surface3);color:var(--t1);
+  border:1px solid var(--border2);border-radius:var(--r8);
+  font-size:12px;font-weight:500;cursor:pointer;transition:.12s;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.sp-btn-ghost:hover{background:var(--border);color:var(--t0)}
+.sp-saved-list{display:flex;flex-direction:column;gap:4px;max-height:110px;overflow-y:auto}
+.sp-saved-item{
+  display:flex;align-items:center;gap:6px;padding:5px 8px;
+  background:var(--surface2);border:1px solid var(--border);border-radius:var(--r6);cursor:pointer;
+}
+.sp-saved-item:hover{border-color:var(--border2)}
+.sp-saved-name{flex:1;font-size:11px;color:var(--t0);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-saved-del{font-size:12px;color:var(--t3);cursor:pointer;padding:0 3px;flex-shrink:0}
+.sp-saved-del:hover{color:var(--red-t)}
+
+/* ═══ ADD QUICK PICKER ═══════════════════════════════════ */
+#add-picker{
+  position:fixed;z-index:600;background:var(--surface);
+  border:1px solid var(--border2);border-radius:var(--r10);
+  box-shadow:var(--shadow-lg);width:158px;display:none;overflow:hidden;
+}
+#add-picker.open{display:block;animation:fadeUp .12s ease}
+.ap-item{
+  display:flex;align-items:center;gap:9px;padding:10px 14px;
+  font-size:12px;font-weight:500;color:var(--t0);
+  border-bottom:1px solid var(--border);cursor:pointer;transition:.1s background;
+}
+.ap-item:last-child{border-bottom:none}
+.ap-item:hover{background:var(--surface3)}
+.ap-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.ap-dot.gc{background:var(--green)}
+.ap-dot.rc{background:var(--red)}
+.ap-dot.go{border:2px solid var(--green);background:transparent}
+.ap-dot.ro{border:2px solid var(--red);background:transparent}
+
+/* ═══ POSITIONS DRAWER ═══════════════════════════════════ */
+#pos-drawer{
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--surface);border-top:2px solid var(--border2);
+  box-shadow:0 -6px 24px rgba(13,20,33,.12);z-index:400;
+  max-height:300px;transform:translateY(100%);transition:transform .22s ease;
+}
+#pos-drawer.open{transform:translateY(0)}
+.pd-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:11px 16px;border-bottom:1px solid var(--border);
+}
+.pd-title{font-size:13px;font-weight:700;color:var(--t0);display:flex;align-items:center;gap:8px}
+.pd-subtitle{font-size:11px;color:var(--t2);font-weight:400;font-family:var(--mono)}
+.pd-hd-right{display:flex;align-items:center;gap:8px}
+.pd-close{font-size:18px;color:var(--t2);cursor:pointer;padding:0 4px;border-radius:4px;line-height:1}
+.pd-close:hover{background:var(--surface3);color:var(--t0)}
+.pd-list{
+  overflow-y:auto;max-height:220px;padding:8px 12px 12px;
+  display:flex;flex-direction:column;gap:5px;
+}
+.pd-card{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 12px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:var(--r8);
+}
+.pd-card.excluded{opacity:.45}
+.pd-badge{
+  font-family:var(--mono);font-size:11px;font-weight:700;
+  padding:2px 8px;border-radius:4px;flex-shrink:0;
+}
+.pd-badge.call{background:var(--green-bg);color:var(--green-t);border:1px solid var(--green-b)}
+.pd-badge.put{background:var(--red-bg);color:var(--red-t);border:1px solid var(--red-b)}
+.pd-info{flex:1;font-size:11px;color:var(--t1);font-family:var(--mono);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd-pnl{font-family:var(--mono);font-size:12px;font-weight:700;white-space:nowrap}
+.pd-pnl.pos{color:var(--green-t)} .pd-pnl.neg{color:var(--red-t)}
+.pd-act{display:flex;gap:4px;flex-shrink:0}
+.pd-btn{
+  padding:3px 7px;border-radius:var(--r6);font-size:11px;
+  border:1px solid var(--border2);background:var(--surface3);
+  color:var(--t1);cursor:pointer;transition:.1s;
+}
+.pd-btn:hover{background:var(--blue-bg);color:var(--blue);border-color:var(--blue-b)}
+.pd-btn.del:hover{background:var(--red-bg);color:var(--red-t);border-color:var(--red-b)}
+.pd-add-row{
+  display:flex;gap:6px;padding:0 12px 10px;
+}
+.pd-add-btn{
+  flex:1;padding:7px;font-size:11px;font-weight:600;text-align:center;
+  border:1.5px dashed var(--border2);border-radius:var(--r8);
+  color:var(--t2);background:transparent;cursor:pointer;transition:.1s;
+}
+.pd-add-btn.c{border-color:var(--green-b);color:var(--green-t)}
+.pd-add-btn.c:hover{background:var(--green-bg)}
+.pd-add-btn.p{border-color:var(--red-b);color:var(--red-t)}
+.pd-add-btn.p:hover{background:var(--red-bg)}
+
+/* ═══ HISTORICAL CHART MODAL ═════════════════════════════ */
+#hist-modal{
+  position:fixed;inset:0;z-index:600;
+  background:rgba(13,20,33,.45);backdrop-filter:blur(4px);
+  display:none;align-items:center;justify-content:center;
+}
+#hist-modal.open{display:flex}
+#hist-box{
+  background:var(--surface);border:1px solid var(--border2);border-radius:var(--r12);
+  width:740px;max-width:96vw;max-height:88vh;overflow:hidden;
+  box-shadow:var(--shadow-lg);animation:fadeUp .18s ease;
+  display:flex;flex-direction:column;
+}
+.hist-hd{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.hist-title{font-size:15px;font-weight:700;color:var(--t0)}
+.hist-close{font-size:22px;color:var(--t2);cursor:pointer;padding:0 4px;border-radius:4px;line-height:1}
+.hist-close:hover{background:var(--surface3);color:var(--t0)}
+.hist-meta{
+  display:flex;gap:24px;padding:10px 20px;border-bottom:1px solid var(--border);
+  flex-shrink:0;overflow-x:auto;
+}
+.hist-stat{display:flex;flex-direction:column;gap:2px}
+.hs-lbl{font-size:10px;color:var(--t2);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.hs-val{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--t0)}
+.hs-val.green{color:var(--green-t)} .hs-val.red{color:var(--red-t)}
+.hist-period-row{display:flex;gap:4px;padding:10px 20px 6px;flex-shrink:0}
+.hp-btn{
+  padding:4px 11px;font-size:11px;font-weight:500;
+  border-radius:var(--r6);border:1px solid var(--border2);
+  background:var(--surface3);color:var(--t1);cursor:pointer;transition:.1s;
+}
+.hp-btn:hover,.hp-btn.on{background:var(--blue-bg);color:var(--blue);border-color:var(--blue-b)}
+.hp-btn.on{font-weight:600}
+#hist-canvas-wrap{flex:1;min-height:0;padding:4px 12px 12px;position:relative}
+#hist-canvas{width:100%!important;height:100%!important}
 </style>
 </head>
 <body>
@@ -386,8 +631,20 @@ input[type=range]::-webkit-slider-thumb{
     </div>
   </div>
   <button class="btn-ghost" id="strat-btn">⊞ Strategy</button>
-  <button class="btn-ghost" id="legs-btn">✏ Edit Legs</button>
-  <button class="btn-primary" id="save-btn">💾 Save</button>
+  <div class="topbar-div"></div>
+  <button class="btn-act" id="btn-add">
+    <span class="btn-act-ico">＋</span>Add
+  </button>
+  <button class="btn-act" id="btn-positions">
+    <span class="btn-act-ico">☰</span>Positions
+    <span class="act-badge" id="pos-count">0</span>
+  </button>
+  <button class="btn-act" id="btn-save-trade">
+    <span class="btn-act-ico">🖫</span>Save Trade
+  </button>
+  <button class="btn-act" id="btn-hist">
+    <span class="btn-act-ico">↺</span>Historical Chart
+  </button>
 </div>
 
 <!-- EXPIRATION BAR -->
@@ -611,6 +868,127 @@ input[type=range]::-webkit-slider-thumb{
 </div>
 
 <div id="toast"></div>
+
+<!-- SAVE POPOVER -->
+<div id="save-pop">
+  <div class="sp-hd">
+    Save Strategy
+    <span class="sp-hd-close" id="sp-close">×</span>
+  </div>
+  <div class="sp-body">
+    <div class="sp-lbl">Strategy Name</div>
+    <input class="sp-input" id="sp-name" type="text" placeholder="e.g. QQQ Bull Call Spread">
+    <div class="sp-meta" id="sp-meta"></div>
+    <button class="sp-btn-primary" id="sp-confirm">Save Strategy</button>
+    <button class="sp-btn-ghost" id="sp-link">🔗 Copy Share Link</button>
+    <div class="sp-divider"></div>
+    <div class="sp-lbl" style="margin-bottom:2px">Recent Saves</div>
+    <div class="sp-saved-list" id="sp-saved-list"></div>
+  </div>
+</div>
+
+<!-- ADD QUICK PICKER -->
+<div id="add-picker">
+  <div class="ap-item" data-type="call" data-dir="long"><span class="ap-dot gc"></span>Long Call</div>
+  <div class="ap-item" data-type="put"  data-dir="long"><span class="ap-dot rc"></span>Long Put</div>
+  <div class="ap-item" data-type="call" data-dir="short"><span class="ap-dot go"></span>Short Call</div>
+  <div class="ap-item" data-type="put"  data-dir="short"><span class="ap-dot ro"></span>Short Put</div>
+</div>
+
+<!-- POSITIONS DRAWER -->
+<div id="pos-drawer">
+  <div class="pd-header">
+    <div class="pd-title">
+      Positions
+      <span class="pd-subtitle" id="pd-subtitle">— legs</span>
+    </div>
+    <div class="pd-hd-right">
+      <span style="font-family:var(--mono);font-size:12px;color:var(--t2)">Net P&L: <strong id="pd-net-pnl" style="color:var(--t0)">$0</strong></span>
+      <span class="pd-close" id="pd-close">×</span>
+    </div>
+  </div>
+  <div class="pd-list" id="pd-list"></div>
+  <div class="pd-add-row">
+    <button class="pd-add-btn c" data-type="call" data-dir="long">+ Long Call</button>
+    <button class="pd-add-btn p"  data-type="put"  data-dir="long">+ Long Put</button>
+    <button class="pd-add-btn c" data-type="call" data-dir="short">+ Short Call</button>
+    <button class="pd-add-btn p"  data-type="put"  data-dir="short">+ Short Put</button>
+  </div>
+</div>
+
+<!-- HISTORICAL CHART MODAL -->
+<div id="hist-modal">
+  <div id="hist-box">
+    <div class="hist-hd">
+      <span class="hist-title" id="hist-title">QQQ — Historical Price & Strategy P&L</span>
+      <span class="hist-close" id="hist-close">×</span>
+    </div>
+    <div class="hist-meta">
+      <div class="hist-stat"><div class="hs-lbl">Period Change</div><div class="hs-val" id="hs-chg">—</div></div>
+      <div class="hist-stat"><div class="hs-lbl">Period High</div><div class="hs-val" id="hs-high">—</div></div>
+      <div class="hist-stat"><div class="hs-lbl">Period Low</div><div class="hs-val" id="hs-low">—</div></div>
+      <div class="hist-stat"><div class="hs-lbl">Hist Vol (ann.)</div><div class="hs-val" id="hs-hvol">—</div></div>
+      <div class="hist-stat"><div class="hs-lbl">IV vs HV</div><div class="hs-val" id="hs-ivhv">—</div></div>
+    </div>
+    <div class="hist-period-row">
+      <button class="hp-btn" data-d="10">10D</button>
+      <button class="hp-btn on" data-d="30">1M</button>
+      <button class="hp-btn" data-d="90">3M</button>
+      <button class="hp-btn" data-d="180">6M</button>
+      <button class="hp-btn" data-d="365">1Y</button>
+    </div>
+    <div id="hist-canvas-wrap"><canvas id="hist-canvas"></canvas></div>
+  </div>
+</div>
+
+<!-- LEG CONTEXT POPUP -->
+<div id="leg-popup">
+  <div class="lp-header">
+    <span id="lp-title">QQQ 670P 5/22/26</span>
+    <span class="lp-close" id="lp-close">×</span>
+  </div>
+  <div class="lp-top-row">
+    <div class="lp-top-cell">
+      <div class="lp-top-lbl">
+        Quantity
+        <span class="lp-chain linked" id="lp-chain" title="Link quantities">⛓</span>
+      </div>
+      <div class="lp-qty-ctrl">
+        <button class="lp-qty-btn" id="lp-qty-minus">‹</button>
+        <span class="lp-qty-num" id="lp-qty-num">1</span>
+        <button class="lp-qty-btn" id="lp-qty-plus">›</button>
+      </div>
+    </div>
+    <div class="lp-top-cell">
+      <div class="lp-top-lbl">Price</div>
+      <div class="lp-price-val" id="lp-price">$0.00</div>
+    </div>
+  </div>
+  <div class="lp-data-grid" id="lp-data-grid"></div>
+  <div class="lp-actions">
+    <button class="lp-action act-switch" id="lp-switch-type">
+      <span class="lp-act-ico">⇄</span>
+      <span id="lp-switch-lbl">Switch to Call</span>
+    </button>
+    <button class="lp-action" id="lp-sell-close">
+      <span class="lp-act-ico">✓</span>
+      <span id="lp-sell-lbl">Sell to Close</span>
+    </button>
+    <button class="lp-action" id="lp-change-exp">
+      <span class="lp-act-ico">📅</span>
+      Change Expiration
+    </button>
+    <div class="lp-exp-picker" id="lp-exp-picker"></div>
+    <button class="lp-action" id="lp-exclude">
+      <span class="lp-act-ico" id="lp-excl-ico">🙈</span>
+      <span id="lp-excl-lbl">Exclude</span>
+    </button>
+    <button class="lp-action act-danger" id="lp-remove">
+      <span class="lp-act-ico">✕</span>
+      Remove
+    </button>
+  </div>
+</div>
 
 <script>
 /* ═══════ BSM ENGINE ════════════════════════════════════════ */
@@ -979,24 +1357,26 @@ function renderStrikes(){
     tag.innerHTML=`<span class="leg-dir">${dirIcon}</span>${leg.strike}${leg.type[0].toUpperCase()} <span class="leg-qty">${leg.qty>1?'×'+leg.qty:''}</span><span class="leg-edit" data-id="${leg.id}">✎</span>`;
     tag.title=`${leg.dir} ${leg.qty}× ${leg.strike} ${leg.type.toUpperCase()} @ $${leg.costBasis}`;
 
-    // Drag
-    let dragging=false,sx=0,ss=leg.strike;
+    // Drag + click
+    let dragging=false,sx=0,ss=leg.strike,didDrag=false;
+    tag.setAttribute('data-popup-id',leg.id);
     tag.addEventListener('mousedown',e=>{
       if(e.target.classList.contains('leg-edit'))return;
-      dragging=true;sx=e.clientX;ss=leg.strike;e.preventDefault();
+      dragging=true;sx=e.clientX;ss=leg.strike;didDrag=false;e.preventDefault();
     });
     document.addEventListener('mousemove',e=>{
       if(!dragging)return;
       const dx=e.clientX-sx;
+      if(Math.abs(dx)>4)didDrag=true;
       const ppp=(sMax-sMin)/W;
       leg.strike=rndStrike(Math.max(Math.round(sMin),Math.min(Math.round(sMax),ss+dx*ppp)));
-      // Shift key: move all
       if(e.shiftKey){const delta=leg.strike-ss-dx*ppp;S.legs.forEach(l=>{if(l.id!==leg.id)l.strike=rndStrike(l.strike+delta);});}
       renderStrikes();updateStats();drawChart();
     });
     document.addEventListener('mouseup',()=>{dragging=false;});
-    tag.querySelector('.leg-edit').addEventListener('click',e=>{
-      e.stopPropagation();selectLeg(leg.id);openEditor();
+    tag.addEventListener('click',e=>{
+      if(e.target.classList.contains('leg-edit')){e.stopPropagation();showLegPopup(leg.id,tag);return;}
+      if(!didDrag)showLegPopup(leg.id,tag);
     });
     overlay.appendChild(tag);
   });
@@ -1314,6 +1694,578 @@ function render(){
   renderExpiries();renderStrikes();updateStats();
   if(S.viewMode==='graph')drawChart();else drawTable();
   renderEditorLegList();
+  updatePositionsCount();
+  // Keep positions drawer live if open
+  if(document.getElementById('pos-drawer').classList.contains('open'))
+    renderPositionsDrawer();
+}
+
+/* ═══════ SAVE POPOVER ══════════════════════════════════════ */
+function genStratName(){
+  if(!S.legs.length)return S.ticker+' Strategy';
+  const parts=S.legs.map(l=>(l.dir==='long'?'Long ':'Short ')+l.strike+(l.type==='call'?'C':'P'));
+  if(S.legs.length===1)return S.ticker+' '+parts[0];
+  const known={
+    long_call:'Long Call',long_put:'Long Put',
+    bull_call:'Bull Call Spread',bear_put:'Bear Put Spread',
+    bull_put:'Bull Put Spread',bear_call:'Bear Call Spread',
+    iron_condor:'Iron Condor',iron_butterfly:'Iron Butterfly',
+    straddle:'Long Straddle',strangle:'Long Strangle',
+    short_straddle:'Short Straddle',short_strangle:'Short Strangle',
+  };
+  // fallback: ticker + leg summary
+  return S.ticker+' '+parts.slice(0,2).join(' / ')+(S.legs.length>2?' +'+( S.legs.length-2):'');
+}
+
+function renderSpSavedList(){
+  const list=document.getElementById('sp-saved-list');
+  list.innerHTML='';
+  const saved=JSON.parse(localStorage.getItem('os_strategies')||'[]');
+  if(!saved.length){
+    list.innerHTML='<div style="font-size:11px;color:var(--t3);padding:2px 0">No saves yet</div>';
+    return;
+  }
+  saved.slice(0,5).forEach((s,i)=>{
+    const item=document.createElement('div');item.className='sp-saved-item';
+    const nm=document.createElement('div');nm.className='sp-saved-name';nm.textContent=s.name;
+    const del=document.createElement('span');del.className='sp-saved-del';del.textContent='×';
+    del.addEventListener('click',e=>{
+      e.stopPropagation();
+      const ss=JSON.parse(localStorage.getItem('os_strategies')||'[]');
+      ss.splice(i,1);localStorage.setItem('os_strategies',JSON.stringify(ss));
+      renderSpSavedList();renderSavedList();
+    });
+    item.appendChild(nm);item.appendChild(del);
+    item.addEventListener('click',()=>{
+      S.ticker=s.ticker;S.stockPrice=s.stockPrice;S.legs=s.legs;
+      S.selectedExpiry=S.legs[0]?.expiry||S.expiries[6];
+      document.getElementById('ticker-inp').value=S.ticker;
+      document.getElementById('ticker-px').textContent='$'+S.stockPrice.toFixed(2);
+      const tk=MOCK_TICKERS[S.ticker];if(tk){S.baseIV=tk.iv;S.q=tk.q;}
+      closeSavePop();render();toast('Loaded: '+s.name);
+    });
+    list.appendChild(item);
+  });
+}
+
+function openSavePop(){
+  const pop=document.getElementById('save-pop');
+  if(pop.classList.contains('open')){closeSavePop();return;}
+  // pre-fill name
+  const inp=document.getElementById('sp-name');
+  inp.value=genStratName();
+  // meta line
+  const active=S.legs.filter(l=>!l.excluded);
+  let netDebit=0;
+  active.forEach(l=>{const m=l.dir==='long'?1:-1;netDebit+=m*l.costBasis*l.qty*100;});
+  document.getElementById('sp-meta').textContent=
+    S.ticker+' · '+S.legs.length+' leg'+(S.legs.length!==1?'s':'')+
+    ' · '+(netDebit>=0?'$'+netDebit.toFixed(0)+' debit':'$'+Math.abs(netDebit).toFixed(0)+' credit');
+  renderSpSavedList();
+  // position below the button
+  const btn=document.getElementById('btn-save-trade');
+  const r=btn.getBoundingClientRect();
+  const pw=288;
+  let left=r.right-pw;
+  left=Math.max(8,Math.min(left,window.innerWidth-pw-8));
+  pop.style.left=left+'px';
+  pop.style.top=(r.bottom+6)+'px';
+  pop.classList.add('open');
+  setTimeout(()=>inp.focus(),80);
+}
+
+function closeSavePop(){
+  document.getElementById('save-pop').classList.remove('open');
+}
+
+function initSavePopover(){
+  document.getElementById('btn-save-trade').addEventListener('click',e=>{
+    e.stopPropagation();openSavePop();
+  });
+  document.getElementById('sp-close').addEventListener('click',closeSavePop);
+
+  document.getElementById('sp-confirm').addEventListener('click',()=>{
+    const name=document.getElementById('sp-name').value.trim()||genStratName();
+    const saved=JSON.parse(localStorage.getItem('os_strategies')||'[]');
+    saved.unshift({name,ticker:S.ticker,stockPrice:S.stockPrice,legs:S.legs,ts:Date.now()});
+    localStorage.setItem('os_strategies',JSON.stringify(saved.slice(0,20)));
+    renderSpSavedList();renderSavedList();
+    closeSavePop();toast('✓ Saved: '+name);
+  });
+
+  document.getElementById('sp-link').addEventListener('click',()=>{
+    const name=document.getElementById('sp-name').value.trim()||genStratName();
+    const slug=encodeURIComponent(name.toLowerCase().replace(/\s+/g,'-'));
+    const url=`https://optionstrat.com/build/${S.ticker.toLowerCase()}/${slug}`;
+    navigator.clipboard?.writeText(url).catch(()=>{});
+    toast('🔗 Link copied!');
+    closeSavePop();
+  });
+
+  // Enter key in name input confirms
+  document.getElementById('sp-name').addEventListener('keydown',e=>{
+    if(e.key==='Enter')document.getElementById('sp-confirm').click();
+    if(e.key==='Escape')closeSavePop();
+  });
+
+  // click outside closes
+  document.addEventListener('click',e=>{
+    const pop=document.getElementById('save-pop');
+    if(pop.classList.contains('open')&&!pop.contains(e.target)&&!e.target.closest('#btn-save-trade'))
+      closeSavePop();
+  });
+}
+
+/* ═══════ ADD QUICK PICKER ══════════════════════════════════ */
+function initAddPicker(){
+  const btn=document.getElementById('btn-add');
+  const picker=document.getElementById('add-picker');
+  btn.addEventListener('click',e=>{
+    e.stopPropagation();
+    if(picker.classList.contains('open')){picker.classList.remove('open');return;}
+    const r=btn.getBoundingClientRect();
+    picker.style.left=r.left+'px';
+    picker.style.bottom=(window.innerHeight-r.top+6)+'px';
+    picker.style.top='auto';
+    picker.classList.add('open');
+  });
+  document.querySelectorAll('.ap-item').forEach(item=>{
+    item.addEventListener('click',()=>{
+      addLeg(item.dataset.type,item.dataset.dir);
+      picker.classList.remove('open');
+    });
+  });
+  document.addEventListener('click',e=>{
+    if(!e.target.closest('#add-picker')&&!e.target.closest('#btn-add'))
+      picker.classList.remove('open');
+  });
+}
+
+/* ═══════ POSITIONS DRAWER ══════════════════════════════════ */
+function updatePositionsCount(){
+  const n=S.legs.filter(l=>!l.excluded).length;
+  document.getElementById('pos-count').textContent=n;
+}
+
+function renderPositionsDrawer(){
+  const list=document.getElementById('pd-list');
+  list.innerHTML='';
+  const sig=S.baseIV*S.ivMult;
+  let netPnl=0;
+
+  if(!S.legs.length){
+    list.innerHTML='<div style="font-size:12px;color:var(--t3);padding:12px 4px">No legs added — use Add + to build a strategy</div>';
+  } else {
+    S.legs.forEach(leg=>{
+      const expD=leg.expiry?.date||S.selectedExpiry?.date;
+      const T=Math.max((expD-S.today)/(365*24*3600*1000),.001);
+      const theo=BSM.price(S.stockPrice,leg.strike,T,S.r,sig,S.q,leg.type);
+      const mult=leg.dir==='long'?1:-1;
+      const pnl=leg.excluded?0:mult*(theo-leg.costBasis)*leg.qty*100;
+      netPnl+=pnl;
+
+      const expStr=leg.expiry?leg.expiry.monthLbl+' '+leg.expiry.lbl:'—';
+      const dirStr=leg.dir==='long'?'L':'S';
+      const card=document.createElement('div');
+      card.className='pd-card'+(leg.excluded?' excluded':'');
+      card.innerHTML=`
+        <span class="pd-badge ${leg.type}">${dirStr} ${leg.strike}${leg.type[0].toUpperCase()}</span>
+        <span class="pd-info">${expStr} &nbsp;·&nbsp; ×${leg.qty} &nbsp;·&nbsp; cost $${leg.costBasis}${leg.excluded?' <em style="color:var(--t3)">[excl]</em>':''}</span>
+        <span class="pd-pnl ${pnl>=0?'pos':'neg'}">${pnl>=0?'+':''}\$${pnl.toFixed(0)}</span>
+        <div class="pd-act">
+          <button class="pd-btn" data-edit="${leg.id}" title="Edit">✎</button>
+          <button class="pd-btn del" data-del="${leg.id}" title="Remove">×</button>
+        </div>`;
+      list.appendChild(card);
+    });
+  }
+
+  document.getElementById('pd-subtitle').textContent=S.legs.length+' leg'+(S.legs.length!==1?'s':'');
+  const npEl=document.getElementById('pd-net-pnl');
+  npEl.textContent=(netPnl>=0?'+':'')+'\$'+netPnl.toFixed(0);
+  npEl.style.color=netPnl>=0?'var(--green-t)':netPnl<0?'var(--red-t)':'var(--t0)';
+
+  list.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{
+    selectLeg(+b.dataset.edit);openEditor();closePositionsDrawer();
+  }));
+  list.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{
+    S.legs=S.legs.filter(l=>l.id!==+b.dataset.del);
+    render();renderPositionsDrawer();updatePositionsCount();
+  }));
+}
+
+function openPositionsDrawer(){
+  renderPositionsDrawer();
+  document.getElementById('pos-drawer').classList.add('open');
+}
+function closePositionsDrawer(){
+  document.getElementById('pos-drawer').classList.remove('open');
+}
+
+function initPositionsDrawer(){
+  document.getElementById('btn-positions').addEventListener('click',()=>{
+    const d=document.getElementById('pos-drawer');
+    d.classList.contains('open')?closePositionsDrawer():openPositionsDrawer();
+  });
+  document.getElementById('pd-close').addEventListener('click',closePositionsDrawer);
+  document.querySelectorAll('.pd-add-btn').forEach(b=>{
+    b.addEventListener('click',()=>{
+      addLeg(b.dataset.type,b.dataset.dir);
+      renderPositionsDrawer();updatePositionsCount();
+    });
+  });
+}
+
+/* ═══════ HISTORICAL CHART ══════════════════════════════════ */
+let histChartInst=null, histPeriod=30;
+
+function genHistPrices(days){
+  const sig=S.baseIV*0.82/Math.sqrt(252);
+  const mu=0.00006;
+  const arr=[S.stockPrice];
+  for(let i=1;i<days;i++){
+    const z=BSM._boxMuller();
+    arr.unshift(arr[0]*Math.exp(mu+sig*z));
+  }
+  return arr;
+}
+
+function drawHistChart(days){
+  histPeriod=days;
+  document.querySelectorAll('.hp-btn').forEach(b=>{
+    b.classList.toggle('on',+b.dataset.d===days);
+  });
+
+  const prices=genHistPrices(days);
+  const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const labels=prices.map((_,i)=>{
+    const d=new Date(S.today.getTime()-(prices.length-1-i)*864e5);
+    return mn[d.getMonth()].slice(0,3)+' '+d.getDate();
+  });
+
+  // Per-leg strategy P&L at each historical price point
+  const sig=S.baseIV*S.ivMult;
+  const active=S.legs.filter(l=>!l.excluded);
+  const pnlData=prices.map(p=>{
+    if(!active.length)return null;
+    let pnl=0;
+    active.forEach(l=>{
+      const expD=l.expiry?.date||S.selectedExpiry?.date;
+      const T=Math.max((expD-S.today)/(365*24*3600*1000),.001);
+      const theo=BSM.price(p,l.strike,T,S.r,sig,S.q,l.type);
+      const mult=l.dir==='long'?1:-1;
+      pnl+=mult*(theo-l.costBasis)*l.qty*100;
+    });
+    return pnl;
+  });
+
+  // Stats
+  const first=prices[0],last=prices[prices.length-1];
+  const chg=(last-first)/first*100;
+  const high=Math.max(...prices),low=Math.min(...prices);
+  // Historical vol: annualised std dev of log returns
+  const rets=prices.slice(1).map((p,i)=>Math.log(p/prices[i]));
+  const mean=rets.reduce((a,b)=>a+b,0)/rets.length;
+  const hvAnn=Math.sqrt(rets.reduce((s,r)=>s+(r-mean)**2,0)/(rets.length-1)*252)*100;
+
+  document.getElementById('hs-chg').textContent=(chg>=0?'+':'')+chg.toFixed(2)+'%';
+  document.getElementById('hs-chg').className='hs-val '+(chg>=0?'green':'red');
+  document.getElementById('hs-high').textContent='$'+high.toFixed(2);
+  document.getElementById('hs-low').textContent='$'+low.toFixed(2);
+  document.getElementById('hs-hvol').textContent=hvAnn.toFixed(1)+'%';
+  const ivPct=(S.baseIV*S.ivMult*100).toFixed(1)+'%';
+  const ivhvDiff=S.baseIV*S.ivMult*100-hvAnn;
+  document.getElementById('hs-ivhv').textContent=
+    'IV '+ivPct+' / HV '+(ivhvDiff>=0?'+':'')+ivhvDiff.toFixed(1)+'%';
+  document.getElementById('hs-ivhv').className='hs-val '+(ivhvDiff>=0?'red':'green');
+
+  document.getElementById('hist-title').textContent=
+    S.ticker+' — Historical Price & Strategy P&L';
+
+  const canvas=document.getElementById('hist-canvas');
+  if(histChartInst){histChartInst.destroy();histChartInst=null;}
+
+  const hasPnl=active.length>0;
+  const lastPnl=hasPnl?pnlData[pnlData.length-1]:0;
+  const datasets=[{
+    label:S.ticker+' Price',
+    data:prices,
+    borderColor:'#2563eb',borderWidth:2,
+    pointRadius:0,
+    fill:{target:'start',above:'rgba(37,99,235,.07)',below:'rgba(0,0,0,0)'},
+    tension:.3,yAxisID:'y',order:1,
+  }];
+  if(hasPnl){
+    datasets.push({
+      label:'Strategy P&L ($)',
+      data:pnlData,
+      borderColor:lastPnl>=0?'#0ab87a':'#e8364a',
+      borderWidth:1.5,borderDash:[5,3],
+      pointRadius:0,fill:false,tension:.3,yAxisID:'y2',order:2,
+    });
+  }
+
+  histChartInst=new Chart(canvas.getContext('2d'),{
+    type:'line',
+    data:{labels,datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      animation:{duration:220},
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:true,labels:{font:{family:'IBM Plex Mono',size:10},color:'#8594b8',boxWidth:18,padding:14}},
+        tooltip:{
+          backgroundColor:'rgba(255,255,255,.97)',borderColor:'rgba(13,20,33,.12)',borderWidth:1,
+          titleColor:'#3d4a66',bodyColor:'#0d1421',
+          titleFont:{family:'IBM Plex Mono',size:11},bodyFont:{family:'IBM Plex Mono',size:11},
+          padding:10,
+          callbacks:{
+            label:i=>{
+              if(i.datasetIndex===0)return S.ticker+': $'+i.parsed.y.toFixed(2);
+              const v=i.parsed.y;
+              return 'P&L: '+(v>=0?'+$':'-$')+Math.abs(v).toFixed(0);
+            }
+          }
+        }
+      },
+      scales:{
+        x:{
+          grid:{color:'rgba(13,20,33,.04)'},border:{display:false},
+          ticks:{color:'#b8c3d9',font:{family:'IBM Plex Mono',size:10},maxTicksLimit:10},
+        },
+        y:{
+          position:'left',grid:{color:'rgba(13,20,33,.05)'},border:{display:false},
+          ticks:{color:'#8594b8',font:{family:'IBM Plex Mono',size:10},callback:v=>'$'+v.toFixed(0)},
+        },
+        ...(hasPnl?{y2:{
+          position:'right',grid:{drawOnChartArea:false},border:{display:false},
+          ticks:{color:'#8594b8',font:{family:'IBM Plex Mono',size:10},
+            callback:v=>(v>=0?'+$':'-$')+Math.abs(v).toFixed(0)},
+        }}:{}),
+      }
+    },
+    plugins:[{
+      id:'todayLine',
+      beforeDraw(chart){
+        const{ctx,scales:{x,y}}=chart;
+        const idx=prices.length-1;
+        const xP=x.getPixelForValue(idx);
+        ctx.save();
+        ctx.strokeStyle='rgba(37,99,235,.35)';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+        ctx.beginPath();ctx.moveTo(xP,y.top);ctx.lineTo(xP,y.bottom);ctx.stroke();
+        ctx.fillStyle='rgba(37,99,235,.6)';ctx.font='600 10px IBM Plex Mono';
+        ctx.fillText('Today',xP+5,y.top+14);ctx.restore();
+      }
+    }]
+  });
+}
+
+function initHistModal(){
+  document.getElementById('btn-hist').addEventListener('click',()=>{
+    document.getElementById('hist-modal').classList.add('open');
+    drawHistChart(histPeriod);
+  });
+  document.getElementById('hist-close').addEventListener('click',()=>{
+    document.getElementById('hist-modal').classList.remove('open');
+    if(histChartInst){histChartInst.destroy();histChartInst=null;}
+  });
+  document.getElementById('hist-modal').addEventListener('click',e=>{
+    if(e.target===document.getElementById('hist-modal')){
+      document.getElementById('hist-modal').classList.remove('open');
+      if(histChartInst){histChartInst.destroy();histChartInst=null;}
+    }
+  });
+  document.querySelectorAll('.hp-btn').forEach(b=>{
+    b.addEventListener('click',()=>drawHistChart(+b.dataset.d));
+  });
+}
+
+/* ═══════ LEG CONTEXT POPUP ════════════════════════════════ */
+let popupLegId=null, linkedMode=true;
+
+function fmtExpShort(date){
+  return`${date.getMonth()+1}/${date.getDate()}/${String(date.getFullYear()).slice(2)}`;
+}
+function getLegBidAsk(leg){
+  const sig=S.baseIV*S.ivMult;
+  const expD=leg.expiry?.date||S.selectedExpiry?.date;
+  const T=Math.max((expD-S.today)/(365*24*3600*1000),.001);
+  const theo=BSM.price(S.stockPrice,leg.strike,T,S.r,sig,S.q,leg.type);
+  const spread=Math.max(0.02,theo*0.013);
+  return{bid:Math.max(0.01,theo-spread/2),ask:theo+spread/2,theo};
+}
+function getLegVolumeOI(leg){
+  const seed=(leg.strike*31+(leg.type==='call'?7:13))%1000;
+  const moneyness=Math.abs(leg.strike-S.stockPrice)/S.stockPrice;
+  const vol=Math.round(Math.max(50,2000*Math.exp(-moneyness*12))+seed%200);
+  return{volume:vol,oi:Math.round(vol*(2.5+(seed%100)/100))};
+}
+
+function showLegPopup(legId,anchorEl){
+  const leg=S.legs.find(l=>l.id===legId);
+  if(!leg)return;
+  popupLegId=legId;
+
+  const expDate=leg.expiry?.date||S.selectedExpiry?.date;
+  document.getElementById('lp-title').textContent=
+    `${S.ticker} ${leg.strike}${leg.type[0].toUpperCase()} ${fmtExpShort(expDate)}`;
+
+  document.getElementById('lp-qty-num').textContent=leg.qty;
+
+  const{bid,ask,theo}=getLegBidAsk(leg);
+  document.getElementById('lp-price').textContent='$'+theo.toFixed(2);
+
+  const sig=S.baseIV*S.ivMult;
+  const expD=leg.expiry?.date||S.selectedExpiry?.date;
+  const T=Math.max((expD-S.today)/(365*24*3600*1000),.001);
+  const gk=BSM.greeks(S.stockPrice,leg.strike,T,S.r,sig,S.q,leg.type);
+  const{volume,oi}=getLegVolumeOI(leg);
+
+  const grid=document.getElementById('lp-data-grid');
+  const cells=[
+    {lbl:'Bid',   val:'$'+bid.toFixed(2),         cls:'green'},
+    {lbl:'Ask',   val:'$'+ask.toFixed(2),          cls:'red'},
+    {lbl:'Volume',val:volume.toLocaleString(),      cls:''},
+    {lbl:'OI',    val:oi.toLocaleString(),          cls:''},
+    {lbl:'IV',    val:(sig*100).toFixed(1)+'%',     cls:''},
+    {lbl:'Delta', val:gk.delta.toFixed(3),          cls:''},
+    {lbl:'Theta', val:gk.theta.toFixed(4),          cls:''},
+    {lbl:'Gamma', val:gk.gamma.toFixed(4),          cls:''},
+    {lbl:'Vega',  val:gk.vega.toFixed(3),           cls:''},
+    {lbl:'Rho',   val:gk.rho.toFixed(3),            cls:''},
+  ];
+  grid.innerHTML='';
+  cells.forEach(c=>{
+    const d=document.createElement('div');d.className='lp-data-cell';
+    d.innerHTML=`<span class="lp-data-lbl">${c.lbl}</span><span class="lp-data-val ${c.cls}">${c.val}</span>`;
+    grid.appendChild(d);
+  });
+
+  document.getElementById('lp-switch-lbl').textContent=leg.type==='put'?'Switch to Call':'Switch to Put';
+  document.getElementById('lp-sell-lbl').textContent=leg.dir==='short'?'Buy to Close':'Sell to Close';
+  document.getElementById('lp-excl-ico').textContent=leg.excluded?'👁':'🙈';
+  document.getElementById('lp-excl-lbl').textContent=leg.excluded?'Include':'Exclude';
+  document.getElementById('lp-chain').className='lp-chain '+(linkedMode?'linked':'unlinked');
+  document.getElementById('lp-exp-picker').classList.remove('open');
+
+  const popup=document.getElementById('leg-popup');
+  popup.style.display='block';
+  const rect=anchorEl.getBoundingClientRect();
+  const pw=popup.offsetWidth||272, ph=popup.offsetHeight||420;
+  let left=rect.left+rect.width/2-pw/2;
+  let top=rect.bottom+8;
+  left=Math.max(8,Math.min(left,window.innerWidth-pw-8));
+  if(top+ph>window.innerHeight-8)top=rect.top-ph-8;
+  popup.style.left=left+'px';
+  popup.style.top=top+'px';
+  popup.classList.add('open');
+}
+
+function hideLegPopup(){
+  const p=document.getElementById('leg-popup');
+  p.classList.remove('open');
+  setTimeout(()=>{if(!p.classList.contains('open'))p.style.display='none';},50);
+  popupLegId=null;
+}
+
+function initLegPopup(){
+  document.getElementById('lp-close').addEventListener('click',hideLegPopup);
+
+  document.getElementById('lp-qty-minus').addEventListener('click',()=>{
+    const leg=S.legs.find(l=>l.id===popupLegId);
+    if(!leg||leg.qty<=1)return;
+    leg.qty--;
+    if(linkedMode)S.legs.forEach(l=>{if(l.id!==leg.id)l.qty=leg.qty;});
+    document.getElementById('lp-qty-num').textContent=leg.qty;
+    render();
+  });
+  document.getElementById('lp-qty-plus').addEventListener('click',()=>{
+    const leg=S.legs.find(l=>l.id===popupLegId);
+    if(!leg)return;
+    leg.qty++;
+    if(linkedMode)S.legs.forEach(l=>{if(l.id!==leg.id)l.qty=leg.qty;});
+    document.getElementById('lp-qty-num').textContent=leg.qty;
+    render();
+  });
+  document.getElementById('lp-chain').addEventListener('click',()=>{
+    linkedMode=!linkedMode;
+    document.getElementById('lp-chain').className='lp-chain '+(linkedMode?'linked':'unlinked');
+    toast(linkedMode?'Quantities linked':'Quantities unlinked');
+  });
+
+  document.getElementById('lp-switch-type').addEventListener('click',()=>{
+    const leg=S.legs.find(l=>l.id===popupLegId);
+    if(!leg)return;
+    leg.type=leg.type==='call'?'put':'call';
+    const sig=S.baseIV*S.ivMult;
+    const expD=leg.expiry?.date||S.selectedExpiry?.date;
+    const T=Math.max((expD-S.today)/(365*24*3600*1000),.01);
+    leg.costBasis=+BSM.price(S.stockPrice,leg.strike,T,S.r,sig,S.q,leg.type).toFixed(2);
+    hideLegPopup();render();
+    toast('Switched to '+leg.type);
+  });
+
+  document.getElementById('lp-sell-close').addEventListener('click',()=>{
+    const leg=S.legs.find(l=>l.id===popupLegId);
+    if(!leg)return;
+    leg.dir=leg.dir==='long'?'short':'long';
+    hideLegPopup();render();
+    toast(leg.dir==='short'?'Set to Short (Sell)':'Set to Long (Buy)');
+  });
+
+  document.getElementById('lp-change-exp').addEventListener('click',()=>{
+    const picker=document.getElementById('lp-exp-picker');
+    if(picker.classList.contains('open')){picker.classList.remove('open');return;}
+    picker.innerHTML='';
+    const leg=S.legs.find(l=>l.id===popupLegId);
+    S.expiries.forEach(exp=>{
+      const btn=document.createElement('button');
+      btn.className='lp-exp-opt'+(leg&&leg.expiry===exp?' cur':'');
+      btn.textContent=exp.monthLbl+' '+exp.lbl;
+      btn.addEventListener('click',()=>{
+        const l=S.legs.find(x=>x.id===popupLegId);
+        if(l){
+          l.expiry=exp;
+          const sig=S.baseIV*S.ivMult;
+          const T=Math.max((exp.date-S.today)/(365*24*3600*1000),.01);
+          l.costBasis=+BSM.price(S.stockPrice,l.strike,T,S.r,sig,S.q,l.type).toFixed(2);
+        }
+        hideLegPopup();render();
+        toast('Expiry changed to '+exp.monthLbl+' '+exp.lbl);
+      });
+      picker.appendChild(btn);
+    });
+    picker.classList.add('open');
+    // reposition popup after expanding
+    setTimeout(()=>{
+      const anchorEl=document.querySelector('.leg-tag[data-popup-id]');
+      const popup=document.getElementById('leg-popup');
+      const ph=popup.offsetHeight||420;
+      const top=parseFloat(popup.style.top);
+      if(top+ph>window.innerHeight-8)popup.style.top=Math.max(8,window.innerHeight-ph-8)+'px';
+    },10);
+  });
+
+  document.getElementById('lp-exclude').addEventListener('click',()=>{
+    const leg=S.legs.find(l=>l.id===popupLegId);
+    if(!leg)return;
+    leg.excluded=!leg.excluded;
+    hideLegPopup();render();
+    toast(leg.excluded?'Leg excluded from P&L':'Leg included in P&L');
+  });
+
+  document.getElementById('lp-remove').addEventListener('click',()=>{
+    S.legs=S.legs.filter(l=>l.id!==popupLegId);
+    hideLegPopup();render();
+    toast('Leg removed');
+  });
+
+  document.addEventListener('click',e=>{
+    const popup=document.getElementById('leg-popup');
+    if(popup.classList.contains('open')&&!popup.contains(e.target)&&!e.target.closest('.leg-tag')){
+      hideLegPopup();
+    }
+  });
 }
 
 /* ═══════ INIT ══════════════════════════════════════════════ */
@@ -1376,7 +2328,7 @@ function init(){
   document.querySelectorAll('[data-s]').forEach(btn=>btn.addEventListener('click',()=>loadStrategy(btn.dataset.s)));
 
   // ── Leg editor ──
-  document.getElementById('legs-btn').addEventListener('click',()=>{openEditor();});
+  // legs-btn removed from topbar; editor still accessible via leg popup / greeks panel click
   document.getElementById('editor-x').addEventListener('click',closeEditor);
   document.getElementById('add-long-call').addEventListener('click',()=>addLeg('call','long'));
   document.getElementById('add-long-put').addEventListener('click',()=>addLeg('put','long'));
@@ -1417,11 +2369,14 @@ function init(){
     });
   });
 
-  // ── Save/Load ──
-  document.getElementById('save-btn').addEventListener('click',saveStrategy);
-
   // ── Stats bar Greeks click ──
   document.getElementById('s-greeks').parentElement.addEventListener('click',()=>{openEditor();});
+
+  initSavePopover();
+  initAddPicker();
+  initPositionsDrawer();
+  initHistModal();
+  initLegPopup();
 
   updateDateLabel();
   renderSavedList();

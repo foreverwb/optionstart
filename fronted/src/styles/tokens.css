@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+/* ── Tailwind v4: register design tokens as utilities ── */
+@theme {
+  /* backgrounds */
+  --color-bg:       #f4f6fa;
+  --color-surface:  #ffffff;
+  --color-surface2: #f8f9fc;
+  --color-surface3: #eef1f8;
+
+  /* borders */
+  --color-border:  #e2e8f0;
+  --color-border2: #c8d0e0;
+
+  /* text */
+  --color-t0: #0d1421;
+  --color-t1: #3d4a66;
+  --color-t2: #8594b8;
+  --color-t3: #b8c3d9;
+
+  /* green */
+  --color-green:    #0ab87a;
+  --color-green-bg: #edfaf4;
+  --color-green-b:  #b0edd5;
+  --color-green-t:  #067a51;
+
+  /* red */
+  --color-red:    #e8364a;
+  --color-red-bg: #fef0f2;
+  --color-red-b:  #f5b8be;
+  --color-red-t:  #b01c2c;
+
+  /* blue */
+  --color-blue:    #2563eb;
+  --color-blue-bg: #eff4ff;
+  --color-blue-b:  #bfcffe;
+  --color-blue-t:  #1a4db8;
+
+  /* amber */
+  --color-amber:    #c97a10;
+  --color-amber-bg: #fff8ed;
+  --color-amber-b:  #fddba4;
+  --color-amber-t:  #935908;
+
+  /* purple */
+  --color-purple:    #7c3aed;
+  --color-purple-bg: #f5f0ff;
+
+  /* shadows */
+  --shadow-sm: 0 1px 3px rgba(13,20,33,.08), 0 1px 2px rgba(13,20,33,.04);
+  --shadow-md: 0 4px 12px rgba(13,20,33,.10), 0 2px 4px rgba(13,20,33,.06);
+  --shadow-lg: 0 12px 32px rgba(13,20,33,.14), 0 4px 8px rgba(13,20,33,.08);
+
+  /* border-radius */
+  --radius-r4:  4px;
+  --radius-r6:  6px;
+  --radius-r8:  8px;
+  --radius-r10: 10px;
+  --radius-r12: 12px;
+
+  /* fonts */
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+}
+
+/* ── Raw CSS custom properties (same names as prototype) ── */
+:root {
+  --bg:       #f4f6fa;
+  --surface:  #ffffff;
+  --surface2: #f8f9fc;
+  --surface3: #eef1f8;
+
+  --border:  #e2e8f0;
+  --border2: #c8d0e0;
+
+  --t0: #0d1421;
+  --t1: #3d4a66;
+  --t2: #8594b8;
+  --t3: #b8c3d9;
+
+  --green:    #0ab87a;
+  --green-bg: #edfaf4;
+  --green-b:  #b0edd5;
+  --green-t:  #067a51;
+
+  --red:    #e8364a;
+  --red-bg: #fef0f2;
+  --red-b:  #f5b8be;
+  --red-t:  #b01c2c;
+
+  --blue:    #2563eb;
+  --blue-bg: #eff4ff;
+  --blue-b:  #bfcffe;
+  --blue-t:  #1a4db8;
+
+  --amber:    #c97a10;
+  --amber-bg: #fff8ed;
+  --amber-b:  #fddba4;
+  --amber-t:  #935908;
+
+  --purple:    #7c3aed;
+  --purple-bg: #f5f0ff;
+
+  --shadow-sm: 0 1px 3px rgba(13,20,33,.08), 0 1px 2px rgba(13,20,33,.04);
+  --shadow:    0 4px 12px rgba(13,20,33,.10), 0 2px 4px rgba(13,20,33,.06);
+  --shadow-lg: 0 12px 32px rgba(13,20,33,.14), 0 4px 8px rgba(13,20,33,.08);
+
+  --r4:  4px;
+  --r6:  6px;
+  --r8:  8px;
+  --r10: 10px;
+  --r12: 12px;
+
+  --sans: 'Inter', sans-serif;
+  --mono: 'IBM Plex Mono', monospace;
+}
