@@ -15,6 +15,7 @@ export function SaveTradePopover({ open, anchorRef, anchorRect, onClose, onToast
   const ticker = useAppStore((s) => s.ticker)
   const legs = useAppStore((s) => s.legs)
   const savedTrades = useAppStore((s) => s.savedTrades)
+  const currentSavedTradeId = useAppStore((s) => s.currentSavedTradeId)
   const saveCurrentTrade = useAppStore((s) => s.saveCurrentTrade)
   const deleteSavedTrade = useAppStore((s) => s.deleteSavedTrade)
 
@@ -31,7 +32,11 @@ export function SaveTradePopover({ open, anchorRef, anchorRect, onClose, onToast
 
   if (!open || !anchorRect) return null
 
-  const defaultName = `${ticker || 'Untitled'} Trade`
+  const currentSavedTrade = currentSavedTradeId
+    ? savedTrades.find((trade) => trade.id === currentSavedTradeId)
+    : undefined
+  const isUpdatingSavedTrade = Boolean(currentSavedTrade)
+  const defaultName = currentSavedTrade?.name ?? `${ticker || 'Untitled'} Trade`
   const displayName = name ?? defaultName
 
   const closePopover = () => {
@@ -39,15 +44,19 @@ export function SaveTradePopover({ open, anchorRef, anchorRect, onClose, onToast
     onClose()
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (legs.length === 0) {
       onToast('No strategy legs to save', 'error')
       return
     }
     const tradeName = name?.trim() ? name.trim() : defaultName
-    saveCurrentTrade(tradeName)
-    onToast(`Trade saved: ${tradeName}`, 'success')
-    closePopover()
+    try {
+      await saveCurrentTrade(tradeName)
+      onToast(isUpdatingSavedTrade ? `Trade updated: ${tradeName}` : `Trade saved: ${tradeName}`, 'success')
+      closePopover()
+    } catch {
+      onToast('Failed to save trade', 'error')
+    }
   }
 
   const meta = `${legs.length} leg${legs.length !== 1 ? 's' : ''} · ${ticker || '—'}`
@@ -81,7 +90,7 @@ export function SaveTradePopover({ open, anchorRef, anchorRect, onClose, onToast
           justifyContent: 'space-between',
         }}
       >
-        Save Strategy
+        {isUpdatingSavedTrade ? 'Update Strategy' : 'Save Strategy'}
         <span
           onClick={closePopover}
           style={{ fontSize: 18, color: 'var(--t2)', cursor: 'pointer', padding: '0 3px', borderRadius: 3, lineHeight: 1 }}
@@ -129,7 +138,7 @@ export function SaveTradePopover({ open, anchorRef, anchorRect, onClose, onToast
           onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--blue-t)' }}
           onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--blue)' }}
         >
-          Save Strategy
+          {isUpdatingSavedTrade ? 'Update Strategy' : 'Save Strategy'}
         </button>
 
         {savedTrades.length > 0 && (
@@ -166,7 +175,9 @@ export function SaveTradePopover({ open, anchorRef, anchorRect, onClose, onToast
                     {trade.name}
                   </span>
                   <span
-                    onClick={() => deleteSavedTrade(trade.id)}
+                    onClick={() => {
+                      deleteSavedTrade(trade.id).catch(() => onToast('Failed to delete trade', 'error'))
+                    }}
                     style={{ fontSize: 12, color: 'var(--t3)', cursor: 'pointer', padding: '0 3px', flexShrink: 0 }}
                     onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--red-t)' }}
                     onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--t3)' }}

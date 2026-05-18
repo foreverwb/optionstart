@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 OptionType = Literal["call", "put"]
 PositionSide = Literal["long", "short"]
+SavedTradeStatus = Literal["active", "expired", "closed"]
 
 
 class ErrorResponse(BaseModel):
@@ -130,5 +131,66 @@ class StrategyResponse(BaseModel):
     ticker: str
     stock_price: float
     legs: list[StrategyLeg]
+    created_at: datetime
+    updated_at: datetime
+
+
+class SavedTradeLeg(BaseModel):
+    id: str
+    option_type: OptionType
+    direction: PositionSide
+    quantity: int = Field(ge=1)
+    strike: float
+    expiry: date
+    cost_basis: float = Field(ge=0)
+    iv: float = Field(ge=0)
+    lot_size: int = Field(gt=0)
+    excluded: bool = False
+
+
+class SavedTradeCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    ticker: str = Field(max_length=20)
+    strategy_name: str = Field(min_length=1, max_length=120)
+    legs: list[SavedTradeLeg]
+    stock_price: float = Field(ge=0)
+    expiry: date | None = None
+    status: SavedTradeStatus
+    cost_basis: float
+    max_profit: float | None = None
+    max_loss: float | None = None
+    unrealized_pnl: float
+    return_pct: float
+
+
+class SavedTradeUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    ticker: str | None = Field(default=None, max_length=20)
+    strategy_name: str | None = Field(default=None, min_length=1, max_length=120)
+    legs: list[SavedTradeLeg] | None = None
+    stock_price: float | None = Field(default=None, ge=0)
+    expiry: date | None = None
+    status: SavedTradeStatus | None = None
+    cost_basis: float | None = None
+    max_profit: float | None = None
+    max_loss: float | None = None
+    unrealized_pnl: float | None = None
+    return_pct: float | None = None
+
+
+class SavedTradeResponse(BaseModel):
+    id: str
+    name: str
+    ticker: str
+    strategy_name: str
+    legs: list[SavedTradeLeg]
+    stock_price: float
+    expiry: date | None
+    status: SavedTradeStatus
+    cost_basis: float
+    max_profit: float | None
+    max_loss: float | None
+    unrealized_pnl: float
+    return_pct: float
     created_at: datetime
     updated_at: datetime
