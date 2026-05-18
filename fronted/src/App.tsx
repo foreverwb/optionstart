@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useAppStore } from '../store/useAppStore'
+import { useAppRoute } from '../hooks/useAppRoute'
 import { useComputeWorker } from '../hooks/useComputeWorker'
 import { useRealtimeQuotes } from '../hooks/useRealtimeQuotes'
 import { calcExpiryPnL } from '../engine/bsm'
@@ -201,11 +202,11 @@ export default function App() {
   const {
     ticker, stockPrice, dividendYield, riskFreeRate, baseIV,
     legs, selectedExpiry, optionChain,
-    appPage,
+    appPage, currentSavedTradeId, savedTrades,
     viewMode, displayMode, rangePercent, dateProgress, showProbDist,
     ivMultiplier, commissionPerContract,
     computedStats,
-    updateComputedStats, setAppPage, reconcileLegStrikes,
+    updateComputedStats, setAppPage, reconcileLegStrikes, loadSavedTrades, loadSavedTrade,
   } = useAppStore()
 
   const { calcPnL, calcGreeks, calcCop, calcHeatmap } = useComputeWorker()
@@ -222,6 +223,14 @@ export default function App() {
   const [expiryPnlPoints, setExpiryPnlPoints] = useState<number[]>([])
   const [heatMatrix, setHeatMatrix] = useState<number[][]>([])
 
+  useAppRoute({
+    appPage,
+    currentSavedTradeId,
+    savedTrades,
+    setAppPage,
+    loadSavedTrade,
+  })
+
   const pushToast = useCallback((text: string, type: ToastMessage['type'] = 'info') => {
     const id = Date.now()
     setToasts((prev) => [...prev, { id, text, type }])
@@ -229,6 +238,10 @@ export default function App() {
   }, [])
 
   // ── Initialization on mount ──────────────────────────────────────────────────
+  useEffect(() => {
+    loadSavedTrades().catch(() => pushToast('Failed to load saved trades', 'error'))
+  }, [loadSavedTrades, pushToast])
+
   useEffect(() => {
     const onResize = () => { useAppStore.setState({}) }
     window.addEventListener('resize', onResize)

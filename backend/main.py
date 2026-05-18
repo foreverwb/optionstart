@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import get_settings
 from models.db_models import init_db
-from routers import options, quotes_ws, stock, strategy
+from routers import options, quotes_ws, saved_trades, stock, strategy
 from services.cache_service import cache_service
 from services.futu_client import futu_client
 
@@ -37,6 +37,7 @@ app.add_middleware(
 app.include_router(stock.router)
 app.include_router(options.router)
 app.include_router(strategy.router)
+app.include_router(saved_trades.router)
 app.include_router(quotes_ws.router)
 
 

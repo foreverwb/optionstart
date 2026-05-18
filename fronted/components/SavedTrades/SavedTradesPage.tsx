@@ -104,16 +104,24 @@ export function SavedTradesPage({ onToast }: SavedTradesPageProps) {
     onToast(trade ? `Opened: ${trade.name}` : 'Trade not found', trade ? 'success' : 'error')
   }
 
-  const handleClose = (id: string) => {
-    closeSavedTrade(id)
-    onToast('Trade closed', 'success')
+  const handleClose = async (id: string) => {
+    try {
+      await closeSavedTrade(id)
+      onToast('Trade closed', 'success')
+    } catch {
+      onToast('Failed to close trade', 'error')
+    }
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     const trade = savedTrades.find((item) => item.id === id)
     if (!window.confirm(`Delete ${trade?.name ?? 'this trade'}?`)) return
-    deleteSavedTrade(id)
-    onToast('Deleted', 'success')
+    try {
+      await deleteSavedTrade(id)
+      onToast('Deleted', 'success')
+    } catch {
+      onToast('Failed to delete trade', 'error')
+    }
   }
 
   return (

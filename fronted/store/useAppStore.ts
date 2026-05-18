@@ -2,6 +2,13 @@ import { create } from 'zustand'
 import { persist, subscribeWithSelector } from 'zustand/middleware'
 import { v4 as uuidv4 } from 'uuid'
 import { calcBSM } from '@/engine/bsm'
+import {
+  closeSavedTradeRequest,
+  createSavedTrade,
+  deleteSavedTradeRequest,
+  fetchSavedTrades,
+  updateSavedTradeRequest,
+} from '@/utils/savedTradesApi'
 import type {
   AppPage,
   Leg,
@@ -303,6 +310,7 @@ interface AppState {
   savedTrades: SavedTrade[]
   savedTradesFilter: SavedTradeFilter
   savedTradesSort: SavedTradeSortKey
+  currentSavedTradeId: string | null
 
   // View controls
   appPage: AppPage
@@ -344,13 +352,48 @@ interface AppState {
   loadSavedStrategy: (name: string) => void
   setSavedTradesFilter: (filter: SavedTradeFilter) => void
   setSavedTradesSort: (sortKey: SavedTradeSortKey) => void
-  saveCurrentTrade: (name?: string) => string
-  updateSavedTrade: (id: string, partial: Partial<Omit<SavedTrade, 'id' | 'createdAt'>>) => void
-  closeSavedTrade: (id: string) => void
-  deleteSavedTrade: (id: string) => void
+  loadSavedTrades: () => Promise<void>
+  saveCurrentTrade: (name?: string) => Promise<string>
+  updateSavedTrade: (id: string, partial: Partial<Omit<SavedTrade, 'id' | 'createdAt'>>) => Promise<void>
+  closeSavedTrade: (id: string) => Promise<void>
+  deleteSavedTrade: (id: string) => Promise<void>
   loadSavedTrade: (id: string) => void
   getSavedTradeSummary: () => SavedTradeSummary
   getVisibleSavedTrades: () => SavedTrade[]
+}
+
+type CurrentTradeSnapshot = Omit<SavedTrade, 'id' | 'createdAt' | 'updatedAt'>
+
+function mergePersistedState(persisted: unknown, current: AppState): AppState {
+  if (typeof persisted !== 'object' || persisted === null) return current
+  const persistedState = { ...(persisted as Partial<AppState>) }
+  delete persistedState.savedTrades
+  delete persistedState.currentSavedTradeId
+  return { ...current, ...persistedState }
+}
+
+function buildCurrentTradeSnapshot(
+  state: AppState,
+  tradeName: string,
+): CurrentTradeSnapshot {
+  const expiry = tradeExpiry(state.legs)
+  const costBasis = state.computedStats?.netDebit ?? netCostBasis(state.legs)
+  const unrealizedPnl = state.computedStats?.unrealizedPnl ?? 0
+
+  return {
+    name: tradeName,
+    ticker: state.ticker,
+    strategyName: tradeName,
+    legs: state.legs.map((leg) => ({ ...leg })),
+    stockPrice: state.stockPrice,
+    expiry,
+    status: inferTradeStatus(expiry),
+    costBasis,
+    maxProfit: state.computedStats?.maxProfit ?? 0,
+    maxLoss: state.computedStats?.maxLoss ?? 0,
+    unrealizedPnl,
+    returnPct: calculateReturnPct(unrealizedPnl, costBasis),
+  }
 }
 
 // ── Store ──
@@ -376,6 +419,7 @@ export const useAppStore = create<AppState>()(
         savedTrades: [],
         savedTradesFilter: 'all',
         savedTradesSort: 'recent',
+        currentSavedTradeId: null,
 
         appPage: 'build',
         dateProgress: 1,
@@ -405,6 +449,7 @@ export const useAppStore = create<AppState>()(
             dateProgress: 1,
             legs: [],
             selectedLegId: null,
+            currentSavedTradeId: null,
             computedStats: null,
           })
         },
@@ -548,6 +593,7 @@ export const useAppStore = create<AppState>()(
             selectedExpiry: legs[0]?.expiry ?? base.date,
             selectedLegId: null,
             dateProgress: 1,
+            currentSavedTradeId: null,
             computedStats: null,
           })
         },
@@ -629,58 +675,50 @@ export const useAppStore = create<AppState>()(
 
         setSavedTradesSort: (sortKey) => set({ savedTradesSort: sortKey }),
 
-        saveCurrentTrade: (name) => {
-          const {
-            ticker,
-            stockPrice,
-            legs,
-            computedStats,
-            savedTrades,
-          } = get()
-          const now = Date.now()
-          const expiry = tradeExpiry(legs)
-          const costBasis = computedStats?.netDebit ?? netCostBasis(legs)
-          const unrealizedPnl = computedStats?.unrealizedPnl ?? 0
-          const tradeName = name?.trim() || `${ticker || 'Untitled'} Strategy`
-          const id = uuidv4()
-          const savedTrade: SavedTrade = {
-            id,
-            name: tradeName,
-            ticker,
-            strategyName: tradeName,
-            legs: legs.map((leg) => ({ ...leg })),
-            stockPrice,
-            createdAt: now,
-            updatedAt: now,
-            expiry,
-            status: inferTradeStatus(expiry),
-            costBasis,
-            maxProfit: computedStats?.maxProfit ?? 0,
-            maxLoss: computedStats?.maxLoss ?? 0,
-            unrealizedPnl,
-            returnPct: calculateReturnPct(unrealizedPnl, costBasis),
-          }
-
-          set({ savedTrades: [savedTrade, ...savedTrades] })
-          return id
+        loadSavedTrades: async () => {
+          const savedTrades = await fetchSavedTrades()
+          set({ savedTrades })
         },
 
-        updateSavedTrade: (id, partial) =>
-          set((s) => ({
-            savedTrades: s.savedTrades.map((trade) =>
-              trade.id === id ? { ...trade, ...partial, updatedAt: Date.now() } : trade,
-            ),
-          })),
+        saveCurrentTrade: async (name) => {
+          const state = get()
+          const currentTrade = state.currentSavedTradeId
+            ? state.savedTrades.find((trade) => trade.id === state.currentSavedTradeId)
+            : undefined
+          const tradeName = name?.trim() || currentTrade?.name || `${state.ticker || 'Untitled'} Strategy`
+          const snapshot = buildCurrentTradeSnapshot(state, tradeName)
+          const savedTrade = state.currentSavedTradeId
+            ? await updateSavedTradeRequest(state.currentSavedTradeId, snapshot)
+            : await createSavedTrade(snapshot)
 
-        closeSavedTrade: (id) =>
           set((s) => ({
-            savedTrades: s.savedTrades.map((trade) =>
-              trade.id === id ? { ...trade, status: 'closed', updatedAt: Date.now() } : trade,
-            ),
-          })),
+            currentSavedTradeId: savedTrade.id,
+            savedTrades: [savedTrade, ...s.savedTrades.filter((trade) => trade.id !== savedTrade.id)],
+          }))
+          return savedTrade.id
+        },
 
-        deleteSavedTrade: (id) =>
-          set((s) => ({ savedTrades: s.savedTrades.filter((trade) => trade.id !== id) })),
+        updateSavedTrade: async (id, partial) => {
+          const savedTrade = await updateSavedTradeRequest(id, partial)
+          set((s) => ({
+            savedTrades: s.savedTrades.map((trade) => trade.id === id ? savedTrade : trade),
+          }))
+        },
+
+        closeSavedTrade: async (id) => {
+          const savedTrade = await closeSavedTradeRequest(id)
+          set((s) => ({
+            savedTrades: s.savedTrades.map((trade) => trade.id === id ? savedTrade : trade),
+          }))
+        },
+
+        deleteSavedTrade: async (id) => {
+          await deleteSavedTradeRequest(id)
+          set((s) => ({
+            currentSavedTradeId: s.currentSavedTradeId === id ? null : s.currentSavedTradeId,
+            savedTrades: s.savedTrades.filter((trade) => trade.id !== id),
+          }))
+        },
 
         loadSavedTrade: (id) => {
           const trade = get().savedTrades.find((savedTrade) => savedTrade.id === id)
@@ -693,6 +731,7 @@ export const useAppStore = create<AppState>()(
             selectedLegId: null,
             dateProgress: 1,
             computedStats: null,
+            currentSavedTradeId: trade.id,
             appPage: 'build',
           })
         },
@@ -706,13 +745,13 @@ export const useAppStore = create<AppState>()(
       }),
       {
         name: 'optionstart-app',
-        // Only persist user-defined strategy data; market data re-fetched on load
+        // Saved trades are stored in SQLite through the backend, not localStorage.
         partialize: (s) => ({
           savedStrategies: s.savedStrategies,
-          savedTrades: s.savedTrades,
           savedTradesFilter: s.savedTradesFilter,
           savedTradesSort: s.savedTradesSort,
         }),
+        merge: mergePersistedState,
       },
     ),
   ),
