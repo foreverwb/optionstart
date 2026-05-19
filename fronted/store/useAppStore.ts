@@ -357,7 +357,7 @@ interface AppState {
   updateSavedTrade: (id: string, partial: Partial<Omit<SavedTrade, 'id' | 'createdAt'>>) => Promise<void>
   closeSavedTrade: (id: string) => Promise<void>
   deleteSavedTrade: (id: string) => Promise<void>
-  loadSavedTrade: (id: string) => void
+  loadSavedTrade: (id: string) => Promise<void>
   getSavedTradeSummary: () => SavedTradeSummary
   getVisibleSavedTrades: () => SavedTrade[]
 }
@@ -641,6 +641,13 @@ export const useAppStore = create<AppState>()(
                 }),
               )
             }
+            const tickerCode = s.ticker ? `US.${s.ticker}`.toUpperCase() : ''
+            const stockQuote = tickerCode
+              ? quotes.find((q) => q.code.toUpperCase() === tickerCode)
+              : undefined
+            if (stockQuote?.lastPrice && stockQuote.lastPrice > 0) {
+              return { optionChain, stockPrice: stockQuote.lastPrice }
+            }
             return { optionChain }
           }),
 
@@ -720,7 +727,7 @@ export const useAppStore = create<AppState>()(
           }))
         },
 
-        loadSavedTrade: (id) => {
+        loadSavedTrade: async (id) => {
           const trade = get().savedTrades.find((savedTrade) => savedTrade.id === id)
           if (!trade) return
           set({
@@ -734,6 +741,27 @@ export const useAppStore = create<AppState>()(
             currentSavedTradeId: trade.id,
             appPage: 'build',
           })
+          try {
+            const { fetchExpiries, fetchOptionChain, fetchStockQuote } = await import('@/hooks/useApi')
+            const [expiries, quote] = await Promise.all([
+              fetchExpiries(trade.ticker),
+              fetchStockQuote(trade.ticker),
+            ])
+            if (quote.last_price > 0) set({ stockPrice: quote.last_price })
+            const chain = new Map<string, OptionContract[]>()
+            if (trade.expiry) {
+              const contracts = await fetchOptionChain(trade.ticker, trade.expiry)
+              chain.set(trade.expiry, contracts)
+              const nonZeroIvs = contracts.filter((c) => c.iv > 0)
+              const avgIv = nonZeroIvs.length > 0
+                ? nonZeroIvs.reduce((sum, c) => sum + c.iv, 0) / nonZeroIvs.length
+                : 0.3
+              set({ baseIV: avgIv })
+            }
+            set({ expiryDates: expiries, optionChain: chain })
+          } catch {
+            /* offline or backend unavailable — use BSM fallback */
+          }
         },
 
         getSavedTradeSummary: () => summarizeSavedTrades(get().savedTrades),
