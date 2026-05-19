@@ -134,21 +134,27 @@ export function StatsBar({ onClickGreeks }: StatsBarProps) {
     ? 'Unlimited'
     : fmtMoney(stats.maxProfit)
 
+  const pnl = stats.unrealizedPnl
+  const isGain = pnl >= 0
+  const pnlPct = Math.round((pnl / Math.max(1, Math.abs(stats.netDebit))) * 100)
+  const pnlDisplay = `${isGain ? '+' : '-'}${fmtMoney(pnl)} (${isGain ? '+' : ''}${pnlPct}%)`
+  const pnlColor = isGain ? 'var(--green-t)' : 'var(--red-t)'
+
   return (
     <div
       id="stats-bar"
       style={{
         position: 'relative',
         display: 'grid',
-        gridTemplateColumns: '1fr 1fr 1fr 1.1fr 1.25fr',
+        gridTemplateColumns: '1fr 1fr 1fr 1fr 1.1fr 1.4fr',
         alignItems: 'center',
-        gap: 20,
+        gap: 16,
         height: 104,
         padding: '0 56px',
         background: panelBg,
         borderBottom: 'none',
         flexShrink: 0,
-        overflow: 'hidden',
+        minWidth: 'max-content',
       }}
     >
       <button
@@ -202,7 +208,7 @@ export function StatsBar({ onClickGreeks }: StatsBarProps) {
       <StatBlock label="Chance of Profit:">
         <ValueLine icon="🎲" value={`${Math.round(stats.cop)}%`} color="#050914" />
       </StatBlock>
-      <StatBlock label="Breakevens:" align="right">
+      <StatBlock label="Breakevens:">
         <div
           style={{
             fontSize: 17,
@@ -214,6 +220,9 @@ export function StatsBar({ onClickGreeks }: StatsBarProps) {
         >
           {breakevenText(stats.breakevens)}
         </div>
+      </StatBlock>
+      <StatBlock label="Unrealized Gain:" align="right">
+        <ValueLine icon="💵" value={pnlDisplay} color={pnlColor} />
       </StatBlock>
     </div>
   )

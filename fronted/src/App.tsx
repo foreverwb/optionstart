@@ -3,9 +3,9 @@ import { useAppStore } from '../store/useAppStore'
 import { useAppRoute } from '../hooks/useAppRoute'
 import { useComputeWorker } from '../hooks/useComputeWorker'
 import { useRealtimeQuotes } from '../hooks/useRealtimeQuotes'
-import { calcExpiryPnL } from '../engine/bsm'
+import { calcExpiryPnL, calcBSM } from '../engine/bsm'
 import type { PnLInput, PnLPoint } from '../engine/bsm'
-import type { Greeks, Leg } from '../types'
+import type { Greeks, Leg, OptionContract } from '../types'
 
 import { TopBar } from '../components/TopBar/TopBar'
 import { ExpirationTimeline } from '../components/ExpirationTimeline/ExpirationTimeline'
@@ -19,6 +19,8 @@ import { SavedTradesPage } from '../components/SavedTrades/SavedTradesPage'
 import type { ColDef } from '../components/HeatTable/HeatTable'
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
+
+const MAX_REALTIME_OPTION_CODES = 399
 
 interface ToastMessage {
   id: number
@@ -196,6 +198,44 @@ function closestPnl(points: PnLPoint[], stockPrice: number): number {
   ).pnl
 }
 
+const MIN_T = 1 / (365.25 * 24)
+
+function computeUnrealizedPnl(
+  legs: Leg[],
+  stockPrice: number,
+  optionChain: Map<string, OptionContract[]>,
+  r: number,
+  q: number,
+  ivMultiplier: number,
+  commission: number,
+): number {
+  const today = new Date().toISOString().slice(0, 10)
+  let pnl = 0
+  for (const leg of legs) {
+    if (leg.excluded) continue
+    const contracts = optionChain.get(leg.expiry) ?? []
+    const contract = contracts.find(
+      (c) => c.optionType === leg.optionType && Math.abs(c.strike - leg.strike) < 0.001,
+    )
+    let currentPrice: number
+    if (contract && contract.bid > 0 && contract.ask > 0) {
+      currentPrice = (contract.bid + contract.ask) / 2
+    } else if (contract && contract.last > 0) {
+      currentPrice = contract.last
+    } else {
+      const T = Math.max((new Date(leg.expiry).getTime() - new Date(today).getTime()) / (365.25 * 86400_000), MIN_T)
+      currentPrice = calcBSM({
+        S: stockPrice, K: leg.strike, T, r, q,
+        sigma: leg.iv * ivMultiplier, isCall: leg.optionType === 'call',
+      }).price
+    }
+    const direction = leg.direction === 'long' ? 1 : -1
+    pnl += direction * (currentPrice - leg.costBasis) * leg.quantity * leg.lotSize
+         - commission * leg.quantity
+  }
+  return parseFloat(pnl.toFixed(2))
+}
+
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -212,9 +252,14 @@ export default function App() {
   const { calcPnL, calcGreeks, calcCop, calcHeatmap } = useComputeWorker()
 
   const realtimeCodes = useMemo(() => {
-    if (!selectedExpiry) return []
-    return (optionChain.get(selectedExpiry) ?? []).map((contract) => contract.symbol).slice(0, 400)
-  }, [optionChain, selectedExpiry])
+    const codes: string[] = []
+    if (ticker) codes.push(`US.${ticker}`)
+    if (selectedExpiry) {
+      const optionCodes = (optionChain.get(selectedExpiry) ?? []).map((contract) => contract.symbol)
+      codes.push(...optionCodes.slice(0, MAX_REALTIME_OPTION_CODES))
+    }
+    return codes
+  }, [ticker, optionChain, selectedExpiry])
   const realtime = useRealtimeQuotes(realtimeCodes)
 
   const [strategyModalOpen, setStrategyModalOpen] = useState(false)
@@ -304,7 +349,7 @@ export default function App() {
           maxProfit: expiryStats.maxProfit,
           cop,
           breakevens: expiryStats.breakevens,
-          unrealizedPnl: closestPnl(curves.pnl, stockPrice),
+          unrealizedPnl: computeUnrealizedPnl(legs, stockPrice, optionChain, riskFreeRate, dividendYield, ivMultiplier, commissionPerContract),
           netGreeks: greeks,
         })
       }).catch(() => { /* worker not ready */ })
@@ -325,7 +370,7 @@ export default function App() {
   }, [
     legs, stockPrice, riskFreeRate, rangePercent, dateProgress,
     dividendYield, ivMultiplier, commissionPerContract,
-    selectedExpiry, viewMode,
+    selectedExpiry, viewMode, optionChain,
     calcPnL, calcGreeks, calcCop, calcHeatmap, updateComputedStats,
   ])
 
@@ -390,7 +435,7 @@ export default function App() {
           </div>
 
           {/* 4. StatsBar — flex-shrink:0, horizontal scroll */}
-          <div style={{ flexShrink: 0, overflow: 'hidden' }}>
+          <div style={{ flexShrink: 0, overflowX: 'auto', overflowY: 'hidden' }}>
             <StatsBar />
           </div>
 
