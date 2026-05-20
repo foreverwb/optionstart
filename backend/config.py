@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     snapshot_ttl_seconds: int = 30
     max_expiry_span_days: int = 30
     max_snapshot_codes: int = 400
+    ws_heartbeat_interval_seconds: int = 30
 
     model_config = SettingsConfigDict(
         env_file=".env",

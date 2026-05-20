@@ -1,5 +1,24 @@
+import { useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
 import type { Leg } from '@/types'
+
+function CostBasisInput({ style, value, onChange }: { style: React.CSSProperties; value: number; onChange: (v: number) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const display = value.toFixed(2)
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={editing ? draft : display}
+      onFocus={(e) => { setDraft(display); setEditing(true); requestAnimationFrame(() => e.target.select()) }}
+      onChange={(e) => { if (/^-?\d*\.?\d{0,2}$/.test(e.target.value) || e.target.value === '') setDraft(e.target.value) }}
+      onBlur={() => { setEditing(false); const p = parseFloat(draft); if (Number.isFinite(p)) onChange(p) }}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+      style={style}
+    />
+  )
+}
 
 export function LegDetailEditor({ leg }: { leg: Leg }) {
   const updateLeg        = useAppStore((s) => s.updateLeg)
@@ -44,10 +63,7 @@ export function LegDetailEditor({ leg }: { leg: Leg }) {
         <div style={fieldLbl}>Cost Basis (per contract)</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontFamily: 'var(--mono)', color: 'var(--t2)', fontSize: 14 }}>$</span>
-          <input
-            style={numInput} type="number" step={0.01} value={leg.costBasis}
-            onChange={(e) => updateLeg(leg.id, { costBasis: parseFloat(e.target.value) || 0 })}
-          />
+          <CostBasisInput style={numInput} value={leg.costBasis} onChange={(v) => updateLeg(leg.id, { costBasis: v })} />
         </div>
       </div>
 

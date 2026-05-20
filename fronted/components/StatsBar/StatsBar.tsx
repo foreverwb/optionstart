@@ -136,8 +136,8 @@ export function StatsBar({ onClickGreeks }: StatsBarProps) {
 
   const pnl = stats.unrealizedPnl
   const isGain = pnl >= 0
-  const pnlPct = Math.round((pnl / Math.max(1, Math.abs(stats.netDebit))) * 100)
-  const pnlDisplay = `${isGain ? '+' : '-'}${fmtMoney(pnl)} (${isGain ? '+' : ''}${pnlPct}%)`
+  const pnlPct = Math.round((Math.abs(pnl) / Math.max(1, Math.abs(stats.netDebit))) * 100)
+  const pnlDisplay = `${isGain ? '+' : '-'}${fmtMoney(pnl, 2)} (${pnlPct}%)`
   const pnlColor = isGain ? 'var(--green-t)' : 'var(--red-t)'
 
   return (

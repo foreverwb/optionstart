@@ -177,7 +177,7 @@ function findContract(
 
 function marketPrice(contract: OptionContract | undefined): number | null {
   if (!contract) return null
-  if (contract.bid > 0 && contract.ask > 0) return parseFloat(((contract.bid + contract.ask) / 2).toFixed(2))
+  if (contract.bid > 0 && contract.ask > 0) return (contract.bid + contract.ask) / 2
   if (contract.last > 0) return contract.last
   return null
 }
@@ -225,6 +225,36 @@ function inferTradeStatus(expiry: string | null): SavedTradeStatus {
   return expiry < today ? 'expired' : 'active'
 }
 
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function dayOrdinal(day: number): string {
+  if (day >= 11 && day <= 13) return `${day}th`
+  switch (day % 10) {
+    case 1: return `${day}st`
+    case 2: return `${day}nd`
+    case 3: return `${day}rd`
+    default: return `${day}th`
+  }
+}
+
+export function generateTradeName(ticker: string, legs: Leg[]): string {
+  const active = legs.filter((l) => !l.excluded)
+  if (active.length === 0 || !ticker) return `${ticker || 'Untitled'} Trade`
+
+  const expiries = active.map((l) => l.expiry).sort()
+  const [, m, d] = expiries[0].split('-').map(Number)
+  const expiryStr = `${MONTH_ABBR[m - 1]} ${dayOrdinal(d)}`
+
+  const sorted = [...active].sort((a, b) => b.strike - a.strike)
+  const legParts = sorted.map((leg) => {
+    const t = leg.optionType === 'call' ? 'C' : 'P'
+    const sign = leg.direction === 'long' ? '+' : '-'
+    return `${leg.strike}${t}(${sign}${leg.quantity})`
+  })
+
+  return `${ticker} ${expiryStr} ${legParts.join('/')}`
+}
+
 function netCostBasis(legs: Leg[]): number {
   return legs.reduce((sum, leg) => {
     if (leg.excluded) return sum
@@ -252,7 +282,7 @@ function marketPriceForLeg(
     item.optionType === leg.optionType && Math.abs(item.strike - leg.strike) < 0.001,
   )
   if (contract) {
-    if (contract.bid > 0 && contract.ask > 0) return parseFloat(((contract.bid + contract.ask) / 2).toFixed(2))
+    if (contract.bid > 0 && contract.ask > 0) return (contract.bid + contract.ask) / 2
     if (contract.last > 0) return contract.last
   }
   return priceLeg(stockPrice, leg.strike, leg.expiry, riskFreeRate, dividendYield, leg.iv * ivMultiplier, leg.optionType === 'call')
@@ -358,6 +388,7 @@ interface AppState {
   closeSavedTrade: (id: string) => Promise<void>
   deleteSavedTrade: (id: string) => Promise<void>
   loadSavedTrade: (id: string) => Promise<void>
+  refreshSavedTradesPnl: () => Promise<void>
   getSavedTradeSummary: () => SavedTradeSummary
   getVisibleSavedTrades: () => SavedTrade[]
 }
@@ -497,11 +528,12 @@ export const useAppStore = create<AppState>()(
             lotSize,
             excluded: false,
           }
-          set((s) => ({ legs: [...s.legs, leg], selectedLegId: leg.id, computedStats: null }))
+          set((s) => ({ legs: [...s.legs, leg], selectedLegId: leg.id, currentSavedTradeId: null }))
         },
 
         updateLeg: (id, partial) =>
           set((s) => {
+            let structureChanged = false
             const legs = s.legs.map((l) => {
               if (l.id !== id) return l
               const updated = { ...l, ...partial }
@@ -509,6 +541,7 @@ export const useAppStore = create<AppState>()(
               const typeChanged = partial.optionType !== undefined && partial.optionType !== l.optionType
               const expiryChanged = partial.expiry !== undefined && partial.expiry !== l.expiry
               if (strikeChanged || typeChanged || expiryChanged) {
+                structureChanged = true
                 updated.strike = resolveStrike(s.optionChain, updated.expiry, updated.optionType, updated.strike)
                 const contract = findContract(s.optionChain, updated.expiry, updated.strike, updated.optionType)
                 const mktPrice = marketPrice(contract)
@@ -517,7 +550,10 @@ export const useAppStore = create<AppState>()(
               }
               return updated
             })
-            return { legs, computedStats: null }
+            return {
+              legs,
+              ...(structureChanged && s.currentSavedTradeId ? { currentSavedTradeId: null } : {}),
+            }
           }),
 
         resetLegCostBasis: (id) =>
@@ -537,20 +573,18 @@ export const useAppStore = create<AppState>()(
                   }
                 : leg
             )),
-            computedStats: null,
           })),
 
         removeLeg: (id) =>
           set((s) => ({
             legs: s.legs.filter((l) => l.id !== id),
             selectedLegId: s.selectedLegId === id ? null : s.selectedLegId,
-            computedStats: null,
+            currentSavedTradeId: null,
           })),
 
         toggleLegExcluded: (id) =>
           set((s) => ({
             legs: s.legs.map((l) => (l.id === id ? { ...l, excluded: !l.excluded } : l)),
-            computedStats: null,
           })),
 
         loadStrategy: (templateKey) => {
@@ -655,7 +689,7 @@ export const useAppStore = create<AppState>()(
           set((s) => {
             const legs = reconcileLegStrikesWithChain(s.legs, s.optionChain)
             if (legs.every((leg, index) => leg === s.legs[index])) return {}
-            return { legs, computedStats: null }
+            return { legs }
           }),
 
         saveCurrentStrategy: (name) =>
@@ -692,7 +726,7 @@ export const useAppStore = create<AppState>()(
           const currentTrade = state.currentSavedTradeId
             ? state.savedTrades.find((trade) => trade.id === state.currentSavedTradeId)
             : undefined
-          const tradeName = name?.trim() || currentTrade?.name || `${state.ticker || 'Untitled'} Strategy`
+          const tradeName = name?.trim() || currentTrade?.name || generateTradeName(state.ticker, state.legs)
           const snapshot = buildCurrentTradeSnapshot(state, tradeName)
           const savedTrade = state.currentSavedTradeId
             ? await updateSavedTradeRequest(state.currentSavedTradeId, snapshot)
@@ -762,6 +796,84 @@ export const useAppStore = create<AppState>()(
           } catch {
             /* offline or backend unavailable — use BSM fallback */
           }
+        },
+
+        refreshSavedTradesPnl: async () => {
+          const activeTrades = get().savedTrades.filter((t) => t.status === 'active')
+          if (activeTrades.length === 0) return
+
+          const { fetchOptionChain, fetchStockQuote } = await import('@/hooks/useApi')
+
+          const expiryKeys = new Set<string>()
+          const tickers = new Set<string>()
+          for (const trade of activeTrades) {
+            tickers.add(trade.ticker)
+            if (trade.expiry) expiryKeys.add(`${trade.ticker}::${trade.expiry}`)
+          }
+
+          const [stockQuotes, chains] = await Promise.all([
+            Promise.all(
+              [...tickers].map(async (ticker) => {
+                try {
+                  const q = await fetchStockQuote(ticker)
+                  return [ticker, q.last_price] as const
+                } catch {
+                  return [ticker, 0] as const
+                }
+              }),
+            ),
+            Promise.all(
+              [...expiryKeys].map(async (key) => {
+                const [ticker, expiry] = key.split('::')
+                try {
+                  const contracts = await fetchOptionChain(ticker, expiry)
+                  return [key, contracts] as const
+                } catch {
+                  return [key, [] as OptionContract[]] as const
+                }
+              }),
+            ),
+          ])
+
+          const priceMap = new Map(stockQuotes)
+          const chainMap = new Map(chains)
+
+          const r = get().riskFreeRate
+
+          set((s) => ({
+            savedTrades: s.savedTrades.map((trade) => {
+              if (trade.status !== 'active') return trade
+              const contracts = trade.expiry
+                ? chainMap.get(`${trade.ticker}::${trade.expiry}`) ?? []
+                : []
+              const stockPrice = priceMap.get(trade.ticker) ?? trade.stockPrice
+
+              let pnl = 0
+              for (const leg of trade.legs) {
+                if (leg.excluded) continue
+                const contract = contracts.find(
+                  (c) => c.optionType === leg.optionType && Math.abs(c.strike - leg.strike) < 0.001,
+                )
+                let currentPrice: number
+                if (contract && contract.bid > 0 && contract.ask > 0) {
+                  currentPrice = (contract.bid + contract.ask) / 2
+                } else if (contract && contract.last > 0) {
+                  currentPrice = contract.last
+                } else {
+                  currentPrice = priceLeg(stockPrice, leg.strike, leg.expiry, r, 0, leg.iv, leg.optionType === 'call')
+                }
+                const direction = leg.direction === 'long' ? 1 : -1
+                pnl += direction * (currentPrice - leg.costBasis) * leg.quantity * leg.lotSize
+              }
+              pnl = parseFloat(pnl.toFixed(2))
+              return {
+                ...trade,
+                stockPrice,
+                unrealizedPnl: pnl,
+                returnPct: calculateReturnPct(pnl, trade.costBasis),
+              }
+            }),
+          }))
         },
 
         getSavedTradeSummary: () => summarizeSavedTrades(get().savedTrades),

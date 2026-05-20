@@ -209,6 +209,7 @@ function StratCard({
 
 export function StrategyModal({ open, onClose }: StrategyModalProps) {
   const loadStrategy = useAppStore((s) => s.loadStrategy)
+  const setAppPage = useAppStore((s) => s.setAppPage)
 
   const handleKey = useCallback(
     (e: KeyboardEvent) => {
@@ -229,6 +230,7 @@ export function StrategyModal({ open, onClose }: StrategyModalProps) {
     if (key !== 'custom') {
       loadStrategy(key as StrategyKey)
     }
+    setAppPage('build')
     onClose()
   }
 

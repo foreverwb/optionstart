@@ -3,6 +3,7 @@ import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from config import get_settings
 from services.futu_client import FutuUnavailableError
 from services.realtime_quote_service import realtime_quote_service
 
@@ -20,8 +21,9 @@ def parse_codes(message: object) -> list[str]:
 
 
 async def heartbeat(client_id: str) -> None:
+    settings = get_settings()
     while True:
-        await asyncio.sleep(30)
+        await asyncio.sleep(settings.ws_heartbeat_interval_seconds)
         await realtime_quote_service.send_ping(client_id)
 
 

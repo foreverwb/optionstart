@@ -3,7 +3,7 @@ import { useAppStore } from '../store/useAppStore'
 import { useAppRoute } from '../hooks/useAppRoute'
 import { useComputeWorker } from '../hooks/useComputeWorker'
 import { useRealtimeQuotes } from '../hooks/useRealtimeQuotes'
-import { calcExpiryPnL, calcBSM } from '../engine/bsm'
+import { calcBSM } from '../engine/bsm'
 import type { PnLInput, PnLPoint } from '../engine/bsm'
 import type { Greeks, Leg, OptionContract } from '../types'
 
@@ -149,23 +149,6 @@ function legsToInput(
   }
 }
 
-function findBreakevens(points: PnLPoint[]): number[] {
-  const breakevens: number[] = []
-  for (let i = 0; i < points.length - 1; i++) {
-    const a = points[i]
-    const b = points[i + 1]
-    if (a.pnl === 0) {
-      breakevens.push(a.price)
-      continue
-    }
-    if (a.pnl * b.pnl < 0) {
-      const price = a.price - (a.pnl * (b.price - a.price)) / (b.pnl - a.pnl)
-      breakevens.push(parseFloat(price.toFixed(2)))
-    }
-  }
-  return [...new Set(breakevens)]
-}
-
 function payoffAt(price: number, legs: PnLInput['legs'], commission: number): number {
   return legs.reduce((sum, leg) => {
     const intrinsic = leg.isCall ? Math.max(price - leg.strike, 0) : Math.max(leg.strike - price, 0)
@@ -174,20 +157,59 @@ function payoffAt(price: number, legs: PnLInput['legs'], commission: number): nu
   }, 0)
 }
 
-function estimateExpiryStats(input: PnLInput, expiryPnl: PnLPoint[]): Pick<NonNullable<ReturnType<typeof useAppStore.getState>['computedStats']>, 'maxLoss' | 'maxProfit' | 'breakevens'> {
+function calcAnalyticalBreakevens(legs: PnLInput['legs'], commission: number): number[] {
+  if (legs.length === 0) return []
+  const strikes = [...new Set(legs.map((l) => l.strike))].sort((a, b) => a - b)
+  const boundedPoints = [0, ...strikes]
+  const breakevens: number[] = []
+
+  for (let i = 0; i < boundedPoints.length - 1; i++) {
+    const p0 = boundedPoints[i]
+    const p1 = boundedPoints[i + 1]
+    const y0 = payoffAt(p0, legs, commission)
+    const y1 = payoffAt(p1, legs, commission)
+    if (y0 === 0 && p0 > 0) {
+      breakevens.push(parseFloat(p0.toFixed(2)))
+      continue
+    }
+    if (y0 * y1 < 0) {
+      const x = p0 - y0 * (p1 - p0) / (y1 - y0)
+      if (x > 0) breakevens.push(parseFloat(x.toFixed(2)))
+    }
+  }
+
+  const lastStrike = strikes[strikes.length - 1]
+  const yLast = payoffAt(lastStrike, legs, commission)
+  if (yLast === 0 && !breakevens.includes(parseFloat(lastStrike.toFixed(2)))) {
+    breakevens.push(parseFloat(lastStrike.toFixed(2)))
+  }
+
+  const highSlope = legs.reduce((sum, leg) => {
+    if (!leg.isCall) return sum
+    return sum + (leg.isLong ? 1 : -1) * leg.quantity * leg.lotSize
+  }, 0)
+  if (highSlope !== 0 && yLast !== 0 && yLast * highSlope < 0) {
+    const x = lastStrike - yLast / highSlope
+    if (x > lastStrike) breakevens.push(parseFloat(x.toFixed(2)))
+  }
+
+  return breakevens.sort((a, b) => a - b)
+}
+
+function estimateExpiryStats(input: PnLInput): Pick<NonNullable<ReturnType<typeof useAppStore.getState>['computedStats']>, 'maxLoss' | 'maxProfit' | 'breakevens'> {
   const highSlope = input.legs.reduce((sum, leg) => {
     if (!leg.isCall) return sum
     return sum + (leg.isLong ? 1 : -1) * leg.quantity * leg.lotSize
   }, 0)
-  const finitePrices = [0, ...input.legs.map((leg) => leg.strike), ...expiryPnl.map((point) => point.price)]
-  const finitePayoffs = finitePrices.map((price) => payoffAt(price, input.legs, input.commission))
-  const finiteMin = Math.min(...finitePayoffs)
-  const finiteMax = Math.max(...finitePayoffs)
+  const testPrices = [0, ...input.legs.map((leg) => leg.strike)]
+  const payoffs = testPrices.map((price) => payoffAt(price, input.legs, input.commission))
+  const finiteMin = Math.min(...payoffs)
+  const finiteMax = Math.max(...payoffs)
 
   return {
     maxLoss: highSlope < 0 ? Number.POSITIVE_INFINITY : Math.max(0, Math.abs(Math.min(0, finiteMin))),
     maxProfit: highSlope > 0 ? Number.POSITIVE_INFINITY : Math.max(0, finiteMax),
-    breakevens: findBreakevens(expiryPnl),
+    breakevens: calcAnalyticalBreakevens(input.legs, input.commission),
   }
 }
 
@@ -331,8 +353,6 @@ export default function App() {
 
     const activeLegInputs = input.legs
     if (activeLegInputs.length > 0) {
-      const statsExpiryPnl = calcExpiryPnL(input, statsRange, 400)
-
       Promise.all([
         calcGreeks(activeLegInputs, stockPrice, riskFreeRate, dividendYield),
         calcCop(input, statsRange),
@@ -342,7 +362,7 @@ export default function App() {
           (sum: number, l: PnLInput['legs'][number]) => sum + (l.isLong ? 1 : -1) * l.premium * l.quantity * l.lotSize,
           0,
         )
-        const expiryStats = estimateExpiryStats(input, statsExpiryPnl)
+        const expiryStats = estimateExpiryStats(input)
         updateComputedStats({
           netDebit,
           maxLoss: expiryStats.maxLoss,

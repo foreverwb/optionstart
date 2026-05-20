@@ -224,34 +224,15 @@ function makeHoverPlugin(
   stockPrice: number,
   displayMode: DisplayMode,
   probDistParams: { mu: number; sigma: number } | undefined,
+  hoverRef: React.MutableRefObject<number | null>,
 ): Plugin {
-  let activeIndex: number | null = null
-
   return {
     id: 'optionstratHover',
-    afterEvent(chart, args) {
-      const { event } = args
-      const { chartArea, scales } = chart
-      const x = scales.x
-      if (!x || prices.length === 0) return
-
-      const isOut = event.type === 'mouseout'
-      const outsideArea = typeof event.x !== 'number' || typeof event.y !== 'number'
-        || event.x < chartArea.left || event.x > chartArea.right
-        || event.y < chartArea.top || event.y > chartArea.bottom
-
-      let nextIndex: number | null = null
-      if (!isOut && !outsideArea && typeof event.x === 'number') {
-        nextIndex = Math.max(0, Math.min(prices.length - 1, Math.round(Number(x.getValueForPixel(event.x)))))
-      }
-
-      if (nextIndex !== activeIndex) {
-        activeIndex = nextIndex
-        args.changed = true
-      }
-    },
     afterDraw(chart) {
-      if (activeIndex == null) return
+      const rawIndex = hoverRef.current
+      if (rawIndex == null || prices.length === 0) return
+      const activeIndex = Math.max(0, Math.min(prices.length - 1, rawIndex))
+
       const { ctx, scales, chartArea } = chart
       const x = scales.x
       const y = scales.y
@@ -324,6 +305,51 @@ export function PnlChart({
 }: PnlChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const chartRef = useRef<Chart | null>(null)
+  const hoverRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const onMove = (e: MouseEvent) => {
+      const chart = chartRef.current
+      if (!chart?.scales?.x || !chart.chartArea) return
+      const rect = canvas.getBoundingClientRect()
+      const mx = e.clientX - rect.left
+      const my = e.clientY - rect.top
+      const { left, right, top, bottom } = chart.chartArea
+
+      if (mx < left || mx > right || my < top || my > bottom) {
+        if (hoverRef.current !== null) {
+          hoverRef.current = null
+          chart.draw()
+        }
+        return
+      }
+
+      const val = chart.scales.x.getValueForPixel(mx)
+      if (val == null) return
+      const idx = Math.round(val)
+      if (idx !== hoverRef.current) {
+        hoverRef.current = idx
+        chart.draw()
+      }
+    }
+
+    const onLeave = () => {
+      if (hoverRef.current !== null) {
+        hoverRef.current = null
+        chartRef.current?.draw()
+      }
+    }
+
+    canvas.addEventListener('mousemove', onMove)
+    canvas.addEventListener('mouseleave', onLeave)
+    return () => {
+      canvas.removeEventListener('mousemove', onMove)
+      canvas.removeEventListener('mouseleave', onLeave)
+    }
+  }, [])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -456,7 +482,7 @@ export function PnlChart({
         makeZeroLinePlugin(),
         makePriceMarkersPlugin(prices, stockPrice, breakevens),
         makeLegendPlugin(daysToExpiry, showProbDist && !!probDistData),
-        makeHoverPlugin(prices, activePnl, stockPrice, displayMode, showProbDist ? probDistParams : undefined),
+        makeHoverPlugin(prices, activePnl, stockPrice, displayMode, showProbDist ? probDistParams : undefined, hoverRef),
       ],
     }
 

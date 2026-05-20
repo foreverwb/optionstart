@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
 import type { Leg, OptionContract } from '@/types'
 
@@ -132,6 +132,50 @@ function ActionItem({
   )
 }
 
+function CostInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+
+  const display = value.toFixed(2)
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={editing ? draft : display}
+      onFocus={(e) => {
+        setDraft(display)
+        setEditing(true)
+        requestAnimationFrame(() => e.target.select())
+      }}
+      onChange={(e) => {
+        const raw = e.target.value
+        if (/^-?\d*\.?\d{0,2}$/.test(raw) || raw === '') setDraft(raw)
+      }}
+      onBlur={() => {
+        setEditing(false)
+        const parsed = parseFloat(draft)
+        if (Number.isFinite(parsed)) onChange(parsed)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+      }}
+      style={{
+        width: 64,
+        textAlign: 'right',
+        background: 'var(--surface2)',
+        border: '1px solid var(--border2)',
+        borderRadius: 'var(--r6)',
+        padding: '3px 6px',
+        fontFamily: 'var(--mono)',
+        fontSize: 12,
+        fontWeight: 600,
+        color: 'var(--t0)',
+      }}
+    />
+  )
+}
+
 export function LegQuickEditPopup({ legId, anchor, onClose }: LegQuickEditPopupProps) {
   const popupRef = useRef<HTMLDivElement>(null)
   const leg = useAppStore((s) => s.legs.find((item) => item.id === legId) ?? null)
@@ -241,24 +285,7 @@ export function LegQuickEditPopup({ legId, anchor, onClose }: LegQuickEditPopupP
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 11, color: 'var(--t2)' }}>Cost</span>
           <span style={{ fontSize: 12, color: 'var(--t2)' }}>$</span>
-          <input
-            type="number"
-            step={0.01}
-            value={leg.costBasis}
-            onChange={(e) => updateLeg(leg.id, { costBasis: parseFloat(e.target.value) || 0 })}
-            style={{
-              width: 64,
-              textAlign: 'right',
-              background: 'var(--surface2)',
-              border: '1px solid var(--border2)',
-              borderRadius: 'var(--r6)',
-              padding: '3px 6px',
-              fontFamily: 'var(--mono)',
-              fontSize: 12,
-              fontWeight: 600,
-              color: 'var(--t0)',
-            }}
-          />
+          <CostInput value={leg.costBasis} onChange={(v) => updateLeg(leg.id, { costBasis: v })} />
           <button
             type="button"
             onClick={() => resetLegCostBasis(leg.id)}

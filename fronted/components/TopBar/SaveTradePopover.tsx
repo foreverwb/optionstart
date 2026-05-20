@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useAppStore } from '@/store/useAppStore'
+import { useAppStore, generateTradeName } from '@/store/useAppStore'
 
 interface SaveTradePopoverProps {
   open: boolean
@@ -20,6 +20,10 @@ export function SaveTradePopover({ open, anchorRef, anchorRect, onClose, onToast
   const deleteSavedTrade = useAppStore((s) => s.deleteSavedTrade)
 
   useEffect(() => {
+    if (open) setName(null)
+  }, [open])
+
+  useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node) && !anchorRef.current?.contains(e.target as Node)) {
@@ -36,7 +40,7 @@ export function SaveTradePopover({ open, anchorRef, anchorRect, onClose, onToast
     ? savedTrades.find((trade) => trade.id === currentSavedTradeId)
     : undefined
   const isUpdatingSavedTrade = Boolean(currentSavedTrade)
-  const defaultName = currentSavedTrade?.name ?? `${ticker || 'Untitled'} Trade`
+  const defaultName = currentSavedTrade?.name ?? generateTradeName(ticker, legs)
   const displayName = name ?? defaultName
 
   const closePopover = () => {
