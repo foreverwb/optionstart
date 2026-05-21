@@ -8,8 +8,6 @@ type Tab = {
 const TABS: Tab[] = [
   { label: 'Build', page: 'build' },
   { label: 'Saved Trades', page: 'saved' },
-  { label: 'Optimize' },
-  { label: 'Flow' },
 ]
 
 interface NavPillsProps {

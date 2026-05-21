@@ -109,7 +109,7 @@ export function TopBar({
           onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--border)'; e.currentTarget.style.color = 'var(--t0)' }}
           onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface3)'; e.currentTarget.style.color = 'var(--t1)' }}
         >
-          ⊞ Strategy
+          Strategy
         </button>
 
         <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
@@ -124,11 +124,11 @@ export function TopBar({
           onMouseEnter={hoverIn}
           onMouseLeave={hoverOut}
         >
-          <span style={{ fontSize: 13, lineHeight: 1 }}>＋</span>Add
+          Add
         </button>
 
         <button onClick={() => setPosOpen((v) => !v)} style={btnActStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut}>
-          <span style={{ fontSize: 13, lineHeight: 1 }}>☰</span>Positions
+          Positions
           <span style={{ background: 'rgba(255,255,255,.25)', borderRadius: 20, padding: '0 5px', fontSize: 10, fontWeight: 700, minWidth: 16, textAlign: 'center', lineHeight: '16px' }}>
             {legsCount}
           </span>
@@ -144,11 +144,11 @@ export function TopBar({
           onMouseEnter={hoverIn}
           onMouseLeave={hoverOut}
         >
-          <span style={{ fontSize: 13, lineHeight: 1 }}>🖫</span>Save Trade
+          Save Trade
         </button>
 
         <button onClick={() => setHistOpen(true)} style={btnActStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut}>
-          <span style={{ fontSize: 13, lineHeight: 1 }}>↺</span>Historical Chart
+          Historical Chart
         </button>
       </div>
 
