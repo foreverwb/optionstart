@@ -89,67 +89,72 @@ export function TopBar({
         <div style={{ flex: 1 }} />
 
         <LiveDot connected={liveConnected} latency={liveLatency} />
-        <TickerSearch />
 
-        <button
-          onClick={onOpenStrategyModal}
-          style={{
-            padding: '6px 12px',
-            background: 'var(--surface3)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r8)',
-            fontSize: 12,
-            fontWeight: 500,
-            color: 'var(--t1)',
-            cursor: 'pointer',
-            transition: 'all 0.12s',
-            fontFamily: 'var(--sans)',
-            flexShrink: 0,
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--border)'; e.currentTarget.style.color = 'var(--t0)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface3)'; e.currentTarget.style.color = 'var(--t1)' }}
-        >
-          Strategy
-        </button>
+        {activePage === 'build' && (
+          <>
+            <TickerSearch />
 
-        <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
+            <button
+              onClick={onOpenStrategyModal}
+              style={{
+                padding: '6px 12px',
+                background: 'var(--surface3)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--r8)',
+                fontSize: 12,
+                fontWeight: 500,
+                color: 'var(--t1)',
+                cursor: 'pointer',
+                transition: 'all 0.12s',
+                fontFamily: 'var(--sans)',
+                flexShrink: 0,
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--border)'; e.currentTarget.style.color = 'var(--t0)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface3)'; e.currentTarget.style.color = 'var(--t1)' }}
+            >
+              Strategy
+            </button>
 
-        <button
-          ref={addBtnRef}
-          onClick={(e) => {
-            setAddAnchorRect(e.currentTarget.getBoundingClientRect())
-            setAddOpen((v) => !v)
-          }}
-          style={btnActStyle}
-          onMouseEnter={hoverIn}
-          onMouseLeave={hoverOut}
-        >
-          Add
-        </button>
+            <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
 
-        <button onClick={() => setPosOpen((v) => !v)} style={btnActStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut}>
-          Positions
-          <span style={{ background: 'rgba(255,255,255,.25)', borderRadius: 20, padding: '0 5px', fontSize: 10, fontWeight: 700, minWidth: 16, textAlign: 'center', lineHeight: '16px' }}>
-            {legsCount}
-          </span>
-        </button>
+            <button
+              ref={addBtnRef}
+              onClick={(e) => {
+                setAddAnchorRect(e.currentTarget.getBoundingClientRect())
+                setAddOpen((v) => !v)
+              }}
+              style={btnActStyle}
+              onMouseEnter={hoverIn}
+              onMouseLeave={hoverOut}
+            >
+              Add
+            </button>
 
-        <button
-          ref={saveBtnRef}
-          onClick={(e) => {
-            setSaveAnchorRect(e.currentTarget.getBoundingClientRect())
-            setSaveOpen((v) => !v)
-          }}
-          style={btnActStyle}
-          onMouseEnter={hoverIn}
-          onMouseLeave={hoverOut}
-        >
-          Save Trade
-        </button>
+            <button onClick={() => setPosOpen((v) => !v)} style={btnActStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut}>
+              Positions
+              <span style={{ background: 'rgba(255,255,255,.25)', borderRadius: 20, padding: '0 5px', fontSize: 10, fontWeight: 700, minWidth: 16, textAlign: 'center', lineHeight: '16px' }}>
+                {legsCount}
+              </span>
+            </button>
 
-        <button onClick={() => setHistOpen(true)} style={btnActStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut}>
-          Historical Chart
-        </button>
+            <button
+              ref={saveBtnRef}
+              onClick={(e) => {
+                setSaveAnchorRect(e.currentTarget.getBoundingClientRect())
+                setSaveOpen((v) => !v)
+              }}
+              style={btnActStyle}
+              onMouseEnter={hoverIn}
+              onMouseLeave={hoverOut}
+            >
+              Save Trade
+            </button>
+
+            <button onClick={() => setHistOpen(true)} style={btnActStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut}>
+              Historical Chart
+            </button>
+          </>
+        )}
       </div>
 
       <AddPicker

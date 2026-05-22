@@ -1,36 +1,14 @@
 import { useMemo, useEffect, useState } from 'react'
 import { useAppStore } from '../../store/useAppStore'
-import type { SavedTrade, SavedTradeFilter, SavedTradeSortKey } from '../../types'
+import type { SavedTrade } from '../../types'
 import {
   daysToExpiry,
   formatExpiry,
   formatSignedCurrency,
-  savedTradesToCsv,
 } from './savedTradeFormat'
-
-const FILTERS: Array<{ label: string; value: SavedTradeFilter }> = [
-  { label: 'All', value: 'all' },
-  { label: 'Active', value: 'active' },
-  { label: 'Expired', value: 'expired' },
-]
-
-const SORT_OPTIONS: Array<{ label: string; value: SavedTradeSortKey }> = [
-  { label: 'Symbol', value: 'ticker' },
-  { label: 'Date', value: 'recent' },
-  { label: 'Expiry', value: 'expiry' },
-  { label: 'P&L', value: 'pnl' },
-]
 
 interface SavedTradesPageProps {
   onToast: (text: string, type?: 'info' | 'success' | 'error') => void
-}
-
-function downloadCsv(csv: string) {
-  const href = `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`
-  const link = document.createElement('a')
-  link.href = href
-  link.download = 'saved_trades.csv'
-  link.click()
 }
 
 function buildSummary(savedTrades: SavedTrade[]) {
@@ -223,19 +201,18 @@ export function SavedTradesPage({ onToast }: SavedTradesPageProps) {
   const savedTrades = useAppStore((s) => s.savedTrades)
   const savedTradesFilter = useAppStore((s) => s.savedTradesFilter)
   const savedTradesSort = useAppStore((s) => s.savedTradesSort)
-  const setSavedTradesFilter = useAppStore((s) => s.setSavedTradesFilter)
-  const setSavedTradesSort = useAppStore((s) => s.setSavedTradesSort)
   const loadSavedTrade = useAppStore((s) => s.loadSavedTrade)
   const closeSavedTrade = useAppStore((s) => s.closeSavedTrade)
   const deleteSavedTrade = useAppStore((s) => s.deleteSavedTrade)
   const refreshSavedTradesPnl = useAppStore((s) => s.refreshSavedTradesPnl)
+  const hasActiveTrades = useAppStore((s) => s.savedTrades.some((t) => t.status === 'active'))
 
-  useEffect(() => { refreshSavedTradesPnl() }, [refreshSavedTradesPnl])
+  useEffect(() => {
+    if (hasActiveTrades) refreshSavedTradesPnl()
+  }, [hasActiveTrades, refreshSavedTradesPnl])
 
   const filtered = useMemo(() => filterTrades(savedTrades, savedTradesFilter), [savedTrades, savedTradesFilter])
   const groups = useMemo(() => groupByTicker(filtered, savedTradesSort), [filtered, savedTradesSort])
-  const activeCount = useMemo(() => savedTrades.filter((t) => t.status === 'active').length, [savedTrades])
-
   const handleOpen = (id: string) => {
     const trade = savedTrades.find((t) => t.id === id)
     loadSavedTrade(id)
@@ -254,79 +231,11 @@ export function SavedTradesPage({ onToast }: SavedTradesPageProps) {
     catch { onToast('Failed to delete trade', 'error') }
   }
 
-  const handleExport = () => {
-    if (savedTrades.length === 0) { onToast('No trades to export', 'info'); return }
-    downloadCsv(savedTradesToCsv(savedTrades))
-    onToast('Exported saved_trades.csv', 'success')
-  }
-
   return (
     <main style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', background: 'var(--bg)' }}>
       {/* Toolbar */}
-      <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+      <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0, color: 'var(--t0)' }}>Saved Trades</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 12 }}>
-          <span style={{ fontSize: 11, color: 'var(--t2)', fontWeight: 500 }}>Group:</span>
-          <div style={{ display: 'flex', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 'var(--r8)', padding: 3, gap: 1 }}>
-            {FILTERS.map((f) => {
-              const active = savedTradesFilter === f.value
-              return (
-                <button key={f.value} onClick={() => setSavedTradesFilter(f.value)} style={{
-                  padding: '4px 13px', borderRadius: 'var(--r6)', border: 0,
-                  background: active ? 'var(--surface)' : 'transparent',
-                  color: active ? 'var(--t0)' : 'var(--t2)',
-                  fontSize: 12, fontWeight: active ? 600 : 500, cursor: 'pointer',
-                  boxShadow: active ? 'var(--shadow-sm)' : 'none', fontFamily: 'var(--sans)',
-                }}>
-                  {f.label}
-                  {f.value === 'active' && (
-                    <span style={{ background: 'var(--green-bg)', color: 'var(--green-t)', padding: '0 4px', borderRadius: 10, fontSize: 9, marginLeft: 4 }}>{activeCount}</span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 11, color: 'var(--t2)', fontWeight: 500 }}>Sort by:</span>
-          <select
-            value={savedTradesSort}
-            onChange={(e) => setSavedTradesSort(e.target.value as SavedTradeSortKey)}
-            style={{ padding: '5px 8px', background: 'var(--surface3)', border: '1px solid var(--border2)', borderRadius: 'var(--r8)', fontSize: 11, color: 'var(--t1)', cursor: 'pointer' }}
-          >
-            {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 11, color: 'var(--t2)', fontWeight: 500 }}>Show:</span>
-          <select
-            value={savedTradesFilter}
-            onChange={(e) => setSavedTradesFilter(e.target.value as SavedTradeFilter)}
-            style={{ padding: '5px 8px', background: 'var(--surface3)', border: '1px solid var(--border2)', borderRadius: 'var(--r8)', fontSize: 11, color: 'var(--t1)', cursor: 'pointer' }}
-          >
-            <option value="all">All</option>
-            <option value="active">Active</option>
-            <option value="expired">Expired</option>
-          </select>
-        </div>
-
-        <div style={{ flex: 1 }} />
-        <button
-          type="button"
-          onClick={handleExport}
-          disabled={savedTrades.length === 0}
-          style={{
-            padding: '6px 14px', background: 'var(--red-t)', border: 'none', borderRadius: 'var(--r8)',
-            fontSize: 12, fontWeight: 600, color: '#fff',
-            cursor: savedTrades.length === 0 ? 'default' : 'pointer',
-            opacity: savedTrades.length === 0 ? 0.5 : 1,
-            display: 'flex', alignItems: 'center', gap: 5,
-          }}
-        >
-          Export <span style={{ fontSize: 13 }}>↓</span>
-        </button>
       </div>
 
       {/* Summary */}

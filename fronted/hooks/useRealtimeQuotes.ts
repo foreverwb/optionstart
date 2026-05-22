@@ -16,7 +16,7 @@ type ServerMessage =
   | { type: 'error'; message?: unknown }
 
 
-const DEFAULT_WS_URL = 'ws://127.0.0.1:8000/ws/quotes'
+const DEFAULT_WS_URL = 'ws://127.0.0.1:8018/ws/quotes'
 const MAX_CODES = 400
 
 function isUSMarketOpen(): boolean {
@@ -203,7 +203,11 @@ export function useRealtimeQuotes(codes: string[]): HookState {
         if (!message) return
         if (message.type === 'quote') {
           const quote = parseQuote(message.quote)
-          if (quote) updateOptionQuotes([quote])
+          if (quote) {
+            updateOptionQuotes([quote])
+            const { appPage, updateSavedTradesQuotes } = useAppStore.getState()
+            if (appPage === 'saved') updateSavedTradesQuotes([quote])
+          }
         } else if (message.type === 'ping') {
           socket.send(JSON.stringify({ action: 'pong', ts: message.ts }))
         } else if (message.type === 'pong') {

@@ -273,15 +273,33 @@ export default function App() {
 
   const { calcPnL, calcGreeks, calcCop, calcHeatmap } = useComputeWorker()
 
+  const savedTradesChainKey = useAppStore((s) => [...s.savedTradesChain.keys()].sort().join('|'))
+
   const realtimeCodes = useMemo(() => {
-    const codes: string[] = []
-    if (ticker) codes.push(`US.${ticker}`)
-    if (selectedExpiry) {
-      const optionCodes = (optionChain.get(selectedExpiry) ?? []).map((contract) => contract.symbol)
-      codes.push(...optionCodes.slice(0, MAX_REALTIME_OPTION_CODES))
+    const codes = new Set<string>()
+    if (appPage === 'build') {
+      if (ticker) codes.add(`US.${ticker}`)
+      if (selectedExpiry) {
+        for (const contract of (optionChain.get(selectedExpiry) ?? [])) {
+          if (codes.size >= MAX_REALTIME_OPTION_CODES) break
+          codes.add(contract.symbol)
+        }
+      }
+    } else if (appPage === 'saved') {
+      for (const trade of savedTrades) {
+        if (trade.status !== 'active') continue
+        codes.add(`US.${trade.ticker}`)
+      }
+      const chain = useAppStore.getState().savedTradesChain
+      for (const contracts of chain.values()) {
+        for (const c of contracts) {
+          if (codes.size >= MAX_REALTIME_OPTION_CODES) break
+          codes.add(c.symbol)
+        }
+      }
     }
-    return codes
-  }, [ticker, optionChain, selectedExpiry])
+    return [...codes]
+  }, [appPage, ticker, optionChain, selectedExpiry, savedTrades, savedTradesChainKey])
   const realtime = useRealtimeQuotes(realtimeCodes)
 
   const [strategyModalOpen, setStrategyModalOpen] = useState(false)
@@ -352,24 +370,35 @@ export default function App() {
     }).catch(() => { /* worker not ready */ })
 
     const activeLegInputs = input.legs
+    const unrealized = computeUnrealizedPnl(legs, stockPrice, optionChain, riskFreeRate, dividendYield, ivMultiplier, commissionPerContract)
     if (activeLegInputs.length > 0) {
+      const netDebit = activeLegInputs.reduce(
+        (sum: number, l: PnLInput['legs'][number]) => sum + (l.isLong ? 1 : -1) * l.premium * l.quantity * l.lotSize,
+        0,
+      )
+      const expiryStats = estimateExpiryStats(input)
+      const prev = useAppStore.getState().computedStats
+      updateComputedStats({
+        netDebit,
+        maxLoss: expiryStats.maxLoss,
+        maxProfit: expiryStats.maxProfit,
+        cop: prev?.cop ?? 0,
+        breakevens: expiryStats.breakevens,
+        unrealizedPnl: unrealized,
+        netGreeks: prev?.netGreeks ?? { delta: 0, gamma: 0, theta: 0, vega: 0, rho: 0 },
+      })
       Promise.all([
         calcGreeks(activeLegInputs, stockPrice, riskFreeRate, dividendYield),
         calcCop(input, statsRange),
         curvesPromise,
-      ]).then(([greeks, cop, curves]: [Greeks, number, { pnl: PnLPoint[]; expiryPnl: PnLPoint[] }]) => {
-        const netDebit = activeLegInputs.reduce(
-          (sum: number, l: PnLInput['legs'][number]) => sum + (l.isLong ? 1 : -1) * l.premium * l.quantity * l.lotSize,
-          0,
-        )
-        const expiryStats = estimateExpiryStats(input)
+      ]).then(([greeks, cop]: [Greeks, number, { pnl: PnLPoint[]; expiryPnl: PnLPoint[] }]) => {
         updateComputedStats({
           netDebit,
           maxLoss: expiryStats.maxLoss,
           maxProfit: expiryStats.maxProfit,
           cop,
           breakevens: expiryStats.breakevens,
-          unrealizedPnl: computeUnrealizedPnl(legs, stockPrice, optionChain, riskFreeRate, dividendYield, ivMultiplier, commissionPerContract),
+          unrealizedPnl: unrealized,
           netGreeks: greeks,
         })
       }).catch(() => { /* worker not ready */ })

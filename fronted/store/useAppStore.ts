@@ -341,6 +341,8 @@ interface AppState {
   savedTradesFilter: SavedTradeFilter
   savedTradesSort: SavedTradeSortKey
   currentSavedTradeId: string | null
+  savedTradesChain: Map<string, OptionContract[]>
+  savedTradesChainBasePrices: Map<string, number>  // ticker → stock price at chain-fetch time
 
   // View controls
   appPage: AppPage
@@ -376,6 +378,7 @@ interface AppState {
   setCommission: (value: number) => void
   updateComputedStats: (stats: ComputedStats | null) => void
   updateOptionQuotes: (quotes: RealtimeQuote[]) => void
+  updateSavedTradesQuotes: (quotes: RealtimeQuote[]) => void
   reconcileLegStrikes: () => void
   saveCurrentStrategy: (name: string) => void
   deleteSavedStrategy: (name: string) => void
@@ -451,6 +454,8 @@ export const useAppStore = create<AppState>()(
         savedTradesFilter: 'all',
         savedTradesSort: 'recent',
         currentSavedTradeId: null,
+        savedTradesChain: new Map(),
+        savedTradesChainBasePrices: new Map(),
 
         appPage: 'build',
         dateProgress: 1,
@@ -685,6 +690,86 @@ export const useAppStore = create<AppState>()(
             return { optionChain }
           }),
 
+        updateSavedTradesQuotes: (quotes) =>
+          set((s) => {
+            if (quotes.length === 0 || s.savedTradesChain.size === 0) return {}
+            const byCode = new Map(quotes.map((q) => [q.code, q]))
+
+            const savedTradesChain = new Map<string, OptionContract[]>()
+            for (const [key, contracts] of s.savedTradesChain.entries()) {
+              savedTradesChain.set(
+                key,
+                contracts.map((c) => {
+                  const q = byCode.get(c.symbol) ?? byCode.get(`US.${c.symbol}`)
+                  if (!q) return c
+                  return {
+                    ...c,
+                    last: q.lastPrice ?? c.last,
+                    bid: q.bidPrice ?? c.bid,
+                    ask: q.askPrice ?? c.ask,
+                    volume: q.volume ?? c.volume,
+                    iv: q.impliedVolatility ?? c.iv,
+                    delta: q.delta ?? c.delta,
+                    gamma: q.gamma ?? c.gamma,
+                    vega: q.vega ?? c.vega,
+                    theta: q.theta ?? c.theta,
+                    rho: q.rho ?? c.rho,
+                  }
+                }),
+              )
+            }
+
+            const r = s.riskFreeRate
+            const savedTrades = s.savedTrades.map((trade) => {
+              if (trade.status !== 'active') return trade
+              const contracts = trade.expiry
+                ? savedTradesChain.get(`${trade.ticker}::${trade.expiry}`) ?? []
+                : []
+              const stockQuote = quotes.find((q) => q.code.toUpperCase() === `US.${trade.ticker}`.toUpperCase())
+              const stockPrice = (stockQuote?.lastPrice && stockQuote.lastPrice > 0) ? stockQuote.lastPrice : trade.stockPrice
+              // Baseline stock price from when the chain was fetched (for delta adjustment)
+              const baseStockPrice = s.savedTradesChainBasePrices.get(trade.ticker) ?? trade.stockPrice
+
+              let pnl = 0
+              for (const leg of trade.legs) {
+                if (leg.excluded) continue
+                const contract = contracts.find(
+                  (c) => c.optionType === leg.optionType && Math.abs(c.strike - leg.strike) < 0.001,
+                )
+                // Check if this option contract was updated in THIS quote batch
+                const optionQuote = contract
+                  ? (byCode.get(contract.symbol) ?? byCode.get(`US.${contract.symbol}`))
+                  : undefined
+                let currentPrice: number
+                if (optionQuote && (optionQuote.bidPrice ?? 0) > 0 && (optionQuote.askPrice ?? 0) > 0) {
+                  // Fresh option quote from WebSocket — use live bid/ask
+                  currentPrice = ((optionQuote.bidPrice ?? 0) + (optionQuote.askPrice ?? 0)) / 2
+                } else if (optionQuote && (optionQuote.lastPrice ?? 0) > 0) {
+                  currentPrice = optionQuote.lastPrice ?? 0
+                } else if (contract && contract.bid > 0 && contract.ask > 0) {
+                  // No fresh option quote — use chain mid as anchor + delta adjustment
+                  const chainMid = (contract.bid + contract.ask) / 2
+                  const delta = contract.delta ?? 0
+                  const stockDelta = stockPrice - baseStockPrice
+                  currentPrice = Math.max(0, chainMid + delta * stockDelta)
+                } else if (contract && contract.last > 0) {
+                  const delta = contract.delta ?? 0
+                  const stockDelta = stockPrice - baseStockPrice
+                  currentPrice = Math.max(0, contract.last + delta * stockDelta)
+                } else {
+                  // No chain data at all — BSM fallback
+                  currentPrice = priceLeg(stockPrice, leg.strike, leg.expiry, r, 0, leg.iv, leg.optionType === 'call')
+                }
+                const direction = leg.direction === 'long' ? 1 : -1
+                pnl += direction * (currentPrice - leg.costBasis) * leg.quantity * leg.lotSize
+              }
+              pnl = parseFloat(pnl.toFixed(2))
+              return { ...trade, stockPrice, unrealizedPnl: pnl, returnPct: calculateReturnPct(pnl, trade.costBasis) }
+            })
+
+            return { savedTradesChain, savedTrades }
+          }),
+
         reconcileLegStrikes: () =>
           set((s) => {
             const legs = reconcileLegStrikesWithChain(s.legs, s.optionChain)
@@ -838,9 +923,22 @@ export const useAppStore = create<AppState>()(
           const priceMap = new Map(stockQuotes)
           const chainMap = new Map(chains)
 
+          const savedTradesChain = new Map<string, OptionContract[]>()
+          for (const [key, contracts] of chainMap) {
+            savedTradesChain.set(key, contracts)
+          }
+
+          // Store baseline stock prices at chain-fetch time for delta adjustment
+          const savedTradesChainBasePrices = new Map<string, number>()
+          for (const [ticker, price] of priceMap) {
+            if (price > 0) savedTradesChainBasePrices.set(ticker, price)
+          }
+
           const r = get().riskFreeRate
 
           set((s) => ({
+            savedTradesChain,
+            savedTradesChainBasePrices,
             savedTrades: s.savedTrades.map((trade) => {
               if (trade.status !== 'active') return trade
               const contracts = trade.expiry
