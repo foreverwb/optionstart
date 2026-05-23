@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     database_url: str = Field(default="sqlite:///./optionstart.db", alias="DATABASE_URL")
 
     cors_origins: list[str] = Field(
-        default=["http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:5188", "http://127.0.0.1:5189"],
+        default=["http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:5188", "http://localhost:5188", "http://127.0.0.1:5189", "http://localhost:5189"],
         alias="CORS_ORIGINS",
     )
 

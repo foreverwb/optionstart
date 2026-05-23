@@ -136,24 +136,13 @@ export function ExpirationTimeline() {
   const expiryDates = useAppStore((s) => s.expiryDates)
   const selectedExpiry = useAppStore((s) => s.selectedExpiry)
   const legs = useAppStore((s) => s.legs)
-  const ticker = useAppStore((s) => s.ticker)
-  const optionChain = useAppStore((s) => s.optionChain)
-  const migrateLegsToExpiry = useAppStore((s) => s.migrateLegsToExpiry)
+  const isChainLoading = useAppStore((s) => s.isChainLoading)
+  const changeExpiry = useAppStore((s) => s.changeExpiry)
 
-  const handleSelectExpiry = useCallback(async (date: string) => {
-    if (!optionChain.has(date) && ticker) {
-      try {
-        const { fetchOptionChain } = await import('@/hooks/useApi')
-        const contracts = await fetchOptionChain(ticker, date)
-        const chain = new Map(useAppStore.getState().optionChain)
-        chain.set(date, contracts)
-        useAppStore.setState({ optionChain: chain })
-      } catch (err) {
-        console.error('[ExpirationTimeline] failed to load chain', err)
-      }
-    }
-    migrateLegsToExpiry(date)
-  }, [migrateLegsToExpiry, optionChain, ticker])
+  const handleSelectExpiry = useCallback((date: string) => {
+    if (isChainLoading) return
+    changeExpiry(date)
+  }, [changeExpiry, isChainLoading])
 
   const groups = useMemo(() => groupByMonth(expiryDates), [expiryDates])
   const legExpiries = useMemo(() => new Set(legs.map((leg) => leg.expiry)), [legs])
@@ -169,8 +158,11 @@ export function ExpirationTimeline() {
         paddingTop: 2,
       }}
     >
-      <div style={{ padding: '0 8px 3px', fontSize: 15, fontWeight: 500, color: 'var(--t0)', lineHeight: 1.2 }}>
+      <div style={{ padding: '0 8px 3px', fontSize: 15, fontWeight: 500, color: 'var(--t0)', lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: 8 }}>
         EXPIRATION: <strong>{dte}d</strong>
+        {isChainLoading && (
+          <span style={{ fontSize: 11, color: 'var(--blue-t)', fontWeight: 500 }}>Loading...</span>
+        )}
       </div>
       <div style={{ overflowX: 'auto', paddingBottom: 2 }}>
         <div style={{ display: 'flex', gap: 4, minWidth: 'max-content' }}>

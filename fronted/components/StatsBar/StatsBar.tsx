@@ -123,7 +123,28 @@ interface StatsBarProps {
 export function StatsBar({ onClickGreeks }: StatsBarProps) {
   void onClickGreeks
   const stats: ComputedStats | null = useAppStore((s) => s.computedStats)
+  const isChainLoading = useAppStore((s) => s.isChainLoading)
 
+  if (stats == null && !isChainLoading) return <EmptyStats />
+  if (stats == null && isChainLoading) {
+    return (
+      <div
+        style={{
+          height: 104,
+          background: panelBg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--blue-t)',
+          fontSize: 15,
+          fontWeight: 500,
+          gap: 8,
+        }}
+      >
+        Loading option chain...
+      </div>
+    )
+  }
   if (stats == null) return <EmptyStats />
 
   const isDebit = stats.netDebit >= 0

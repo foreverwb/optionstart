@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { useAppRoute } from '../hooks/useAppRoute'
 import { useComputeWorker } from '../hooks/useComputeWorker'
@@ -21,6 +21,11 @@ import type { ColDef } from '../components/HeatTable/HeatTable'
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
 const MAX_REALTIME_OPTION_CODES = 399
+
+// Pre-compute P&L at a wide range so RANGE slider changes are instant (no worker round-trip).
+// The slider only clips the visible portion from this pre-computed curve.
+const COMPUTE_RANGE_PCT = 52
+const COMPUTE_STEPS = 500
 
 interface ToastMessage {
   id: number
@@ -265,10 +270,12 @@ export default function App() {
     ticker, stockPrice, dividendYield, riskFreeRate, baseIV,
     legs, selectedExpiry, optionChain,
     appPage, currentSavedTradeId, savedTrades,
+    activeStrategyKey,
     viewMode, displayMode, rangePercent, dateProgress, showProbDist,
     ivMultiplier, commissionPerContract,
     computedStats,
     updateComputedStats, setAppPage, reconcileLegStrikes, loadSavedTrades, loadSavedTrade,
+    loadStrategyFromRoute,
   } = useAppStore()
 
   const { calcPnL, calcGreeks, calcCop, calcHeatmap } = useComputeWorker()
@@ -304,16 +311,21 @@ export default function App() {
 
   const [strategyModalOpen, setStrategyModalOpen] = useState(false)
   const [toasts, setToasts] = useState<ToastMessage[]>([])
-  const [pnlPoints, setPnlPoints] = useState<number[]>([])
-  const [expiryPnlPoints, setExpiryPnlPoints] = useState<number[]>([])
+  // Full-range P&L data (pre-computed at ±COMPUTE_RANGE_PCT for smooth RANGE slider)
+  const [fullPnlPoints, setFullPnlPoints] = useState<number[]>([])
+  const [fullExpiryPnlPoints, setFullExpiryPnlPoints] = useState<number[]>([])
+  const fullPricesRef = useRef<number[]>([])
   const [heatMatrix, setHeatMatrix] = useState<number[][]>([])
 
   useAppRoute({
     appPage,
     currentSavedTradeId,
+    activeStrategyKey,
+    ticker,
     savedTrades,
     setAppPage,
     loadSavedTrade,
+    loadStrategyFromRoute,
   })
 
   const pushToast = useCallback((text: string, type: ToastMessage['type'] = 'info') => {
@@ -338,23 +350,24 @@ export default function App() {
   }, [legs, optionChain, reconcileLegStrikes])
 
   // ── Compute on change ────────────────────────────────────────────────────────
+  // P&L is computed at a WIDE range (±COMPUTE_RANGE_PCT) so the RANGE slider can
+  // clip the visible portion instantly without re-calling the Web Worker.
+  // NOTE: rangePercent is NOT a dependency — changing it only clips the view.
   // NOTE: optionChain is NOT in the dependency array to avoid recomputing the
-  // entire chart on every WebSocket tick. During market hours, real-time quotes
-  // update optionChain 50+ times/sec — that must NOT trigger heavy worker
-  // recalculations (calcPnL / calcGreeks / calcCop). Instead we read optionChain
-  // from the store snapshot inside the effect and update unrealizedPnl separately.
+  // entire chart on every WebSocket tick.
   useEffect(() => {
     if (!stockPrice || legs.length === 0) {
       queueMicrotask(() => {
         updateComputedStats(null)
-        setPnlPoints([])
-        setExpiryPnlPoints([])
+        setFullPnlPoints([])
+        setFullExpiryPnlPoints([])
+        fullPricesRef.current = []
         setHeatMatrix([])
       })
       return
     }
 
-    const chartRange = buildPriceRange(stockPrice, rangePercent)
+    const wideRange = buildPriceRange(stockPrice, COMPUTE_RANGE_PCT)
     const statsRange = buildStatsRange(stockPrice)
     const input = legsToInput(
       legs,
@@ -367,11 +380,13 @@ export default function App() {
       selectedExpiry,
     )
 
-    const curvesPromise = calcPnL(input, chartRange, 200)
+    // Pre-compute full P&L curve at wide range
+    fullPricesRef.current = buildPrices(stockPrice, COMPUTE_RANGE_PCT, COMPUTE_STEPS)
+    const curvesPromise = calcPnL(input, wideRange, COMPUTE_STEPS)
 
     curvesPromise.then(({ pnl, expiryPnl }) => {
-      setPnlPoints(pnl.map((p) => p.pnl))
-      setExpiryPnlPoints(expiryPnl.map((p) => p.pnl))
+      setFullPnlPoints(pnl.map((p) => p.pnl))
+      setFullExpiryPnlPoints(expiryPnl.map((p) => p.pnl))
     }).catch(() => { /* worker not ready */ })
 
     const activeLegInputs = input.legs
@@ -411,6 +426,8 @@ export default function App() {
     }
 
     if (viewMode === 'table' && selectedExpiry) {
+      const currentRange = useAppStore.getState().rangePercent
+      const heatRange = buildPriceRange(stockPrice, currentRange)
       const cols = buildHeatCols(selectedExpiry)
       const today = new Date().toISOString().slice(0, 10)
       const t0 = new Date(today).getTime()
@@ -418,12 +435,12 @@ export default function App() {
       const dates = cols.map((c) =>
         new Date(t0 + (t1 - t0) * c.frac).toISOString().slice(0, 10),
       )
-      calcHeatmap(input, chartRange, dates, 16).then((matrix: number[][]) => {
+      calcHeatmap(input, heatRange, dates, 16).then((matrix: number[][]) => {
         setHeatMatrix(matrix)
       }).catch(() => { /* worker not ready */ })
     }
   }, [
-    legs, stockPrice, riskFreeRate, rangePercent, dateProgress,
+    legs, stockPrice, riskFreeRate, dateProgress,
     dividendYield, ivMultiplier, commissionPerContract,
     selectedExpiry, viewMode,
     calcPnL, calcGreeks, calcCop, calcHeatmap, updateComputedStats,
@@ -442,7 +459,32 @@ export default function App() {
   }, [optionChain, stockPrice, legs, riskFreeRate, dividendYield, ivMultiplier, commissionPerContract, updateComputedStats])
 
   // ── Derived values ───────────────────────────────────────────────────────────
-  const prices = buildPrices(stockPrice, rangePercent, 200)
+  // Clip full-range P&L data to the visible RANGE slider value (instant, no worker)
+  const { prices, pnlPoints, expiryPnlPoints } = useMemo(() => {
+    const fp = fullPricesRef.current
+    if (fp.length === 0 || fullPnlPoints.length === 0 || fullExpiryPnlPoints.length === 0) {
+      return { prices: buildPrices(stockPrice, rangePercent, 200), pnlPoints: [] as number[], expiryPnlPoints: [] as number[] }
+    }
+    const [lo, hi] = buildPriceRange(stockPrice, rangePercent)
+    // Binary-search-like find of start/end indices
+    let startIdx = 0
+    let endIdx = fp.length - 1
+    for (let i = 0; i < fp.length; i++) {
+      if (fp[i] >= lo) { startIdx = i; break }
+    }
+    for (let i = fp.length - 1; i >= 0; i--) {
+      if (fp[i] <= hi) { endIdx = i; break }
+    }
+    if (startIdx >= endIdx) {
+      return { prices: buildPrices(stockPrice, rangePercent, 200), pnlPoints: [] as number[], expiryPnlPoints: [] as number[] }
+    }
+    return {
+      prices: fp.slice(startIdx, endIdx + 1),
+      pnlPoints: fullPnlPoints.slice(startIdx, endIdx + 1),
+      expiryPnlPoints: fullExpiryPnlPoints.slice(startIdx, endIdx + 1),
+    }
+  }, [fullPnlPoints, fullExpiryPnlPoints, stockPrice, rangePercent])
+
   const heatPrices = buildPrices(stockPrice, rangePercent, 16)
   const heatCols = buildHeatCols(selectedExpiry)
   const selectedDateDte = useMemo(() => {
@@ -506,8 +548,8 @@ export default function App() {
             <StatsBar />
           </div>
 
-          {/* 5. ViewArea — flex:1, overflow:hidden */}
-          <div style={{ flex: 1, overflow: 'hidden', position: 'relative', background: '#eef3ff' }}>
+          {/* 5. ViewArea — flex:1, min-height for chart proportion */}
+          <div style={{ flex: 1, minHeight: 340, overflow: 'hidden', position: 'relative', background: '#eef3ff' }}>
             {viewMode === 'chart' && (
               <PnlChart
                 prices={prices}

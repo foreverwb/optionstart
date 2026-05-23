@@ -27,6 +27,47 @@ import type {
   SavedTradeStatus,
 } from '@/types'
 
+// ── Strategy slug mapping (StrategyKey ↔ URL slug) ──
+
+const STRATEGY_SLUGS: Record<StrategyKey, string> = {
+  long_call: 'long-call',
+  long_put: 'long-put',
+  covered_call: 'covered-call',
+  cash_put: 'cash-secured-put',
+  protective_put: 'protective-put',
+  bull_call: 'bull-call-spread',
+  bear_put: 'bear-put-spread',
+  bull_put: 'bull-put-spread',
+  bear_call: 'bear-call-spread',
+  iron_condor: 'iron-condor',
+  iron_butterfly: 'iron-butterfly',
+  straddle: 'long-straddle',
+  strangle: 'long-strangle',
+  collar: 'collar',
+  call_butterfly: 'call-butterfly',
+  put_butterfly: 'put-butterfly',
+  calendar_call: 'calendar-call',
+  calendar_put: 'calendar-put',
+  diagonal_call: 'diagonal-call',
+  jade_lizard: 'jade-lizard',
+  short_straddle: 'short-straddle',
+  short_strangle: 'short-strangle',
+  call_ratio: 'call-ratio',
+  put_ratio: 'put-ratio',
+}
+
+const SLUG_TO_STRATEGY = new Map(
+  (Object.entries(STRATEGY_SLUGS) as [StrategyKey, string][]).map(([k, v]) => [v, k]),
+)
+
+export function strategyKeyToSlug(key: StrategyKey): string {
+  return STRATEGY_SLUGS[key]
+}
+
+export function slugToStrategyKey(slug: string): StrategyKey | null {
+  return SLUG_TO_STRATEGY.get(slug) ?? null
+}
+
 // ── Strategy template definitions (mirroring prototype STRATEGIES) ──
 
 type TemplateLeg = {
@@ -357,10 +398,14 @@ interface AppState {
   savedTradesChain: Map<string, OptionContract[]>
   savedTradesChainBasePrices: Map<string, number>  // ticker → stock price at chain-fetch time
 
+  // Active strategy tracking
+  activeStrategyKey: StrategyKey | null
+  isChainLoading: boolean
+
   // View controls
   appPage: AppPage
   dateProgress: number          // 0~1: fraction of time elapsed to expiry
-  rangePercent: number          // 1~20: price axis range as % of stock price
+  rangePercent: number          // 1~49: price axis range as % of stock price
   ivMultiplier: number          // 0.5~3.0: scales baseIV for scenario analysis
   displayMode: DisplayMode
   viewMode: ViewMode
@@ -407,6 +452,8 @@ interface AppState {
   refreshSavedTradesPnl: () => Promise<void>
   getSavedTradeSummary: () => SavedTradeSummary
   getVisibleSavedTrades: () => SavedTrade[]
+  loadStrategyFromRoute: (strategyKey: StrategyKey, symbol: string) => Promise<void>
+  changeExpiry: (date: string) => Promise<void>
 }
 
 type CurrentTradeSnapshot = Omit<SavedTrade, 'id' | 'createdAt' | 'updatedAt'>
@@ -470,6 +517,9 @@ export const useAppStore = create<AppState>()(
         savedTradesChain: new Map(),
         savedTradesChainBasePrices: new Map(),
 
+        activeStrategyKey: null,
+        isChainLoading: false,
+
         appPage: 'build',
         dateProgress: 1,
         rangePercent: 10,
@@ -491,7 +541,6 @@ export const useAppStore = create<AppState>()(
             stockPrice: price,
             dividendYield: q,
             baseIV: iv,
-            // reset derived state when ticker changes
             expiryDates: [],
             optionChain: new Map(),
             selectedExpiry: null,
@@ -499,6 +548,7 @@ export const useAppStore = create<AppState>()(
             legs: [],
             selectedLegId: null,
             currentSavedTradeId: null,
+            activeStrategyKey: null,
             computedStats: null,
           })
         },
@@ -652,13 +702,14 @@ export const useAppStore = create<AppState>()(
             selectedLegId: null,
             dateProgress: 1,
             currentSavedTradeId: null,
+            activeStrategyKey: templateKey,
             computedStats: null,
           })
         },
 
         setDateProgress: (value) => set({ dateProgress: Math.max(0, Math.min(1, value)) }),
 
-        setRangePercent: (value) => set({ rangePercent: Math.max(1, Math.min(20, value)) }),
+        setRangePercent: (value) => set({ rangePercent: Math.max(1, Math.min(49, value)) }),
 
         setIvMultiplier: (value) => set({ ivMultiplier: Math.max(0.5, Math.min(3.0, value)) }),
 
@@ -1003,6 +1054,81 @@ export const useAppStore = create<AppState>()(
         getVisibleSavedTrades: () => {
           const { savedTrades, savedTradesFilter, savedTradesSort } = get()
           return filterAndSortSavedTrades(savedTrades, savedTradesFilter, savedTradesSort)
+        },
+
+        loadStrategyFromRoute: async (strategyKey, symbol) => {
+          const { fetchExpiries, fetchOptionChain, fetchStockQuote } = await import('@/hooks/useApi')
+          set({
+            ticker: symbol,
+            stockPrice: 0,
+            legs: [],
+            expiryDates: [],
+            optionChain: new Map(),
+            selectedExpiry: null,
+            activeStrategyKey: strategyKey,
+            currentSavedTradeId: null,
+            computedStats: null,
+            isChainLoading: true,
+            appPage: 'build',
+          })
+
+          try {
+            const [quote, expiries] = await Promise.all([
+              fetchStockQuote(symbol),
+              fetchExpiries(symbol),
+            ])
+
+            set({
+              stockPrice: quote.last_price,
+              dividendYield: 0,
+              baseIV: 0.3,
+              expiryDates: expiries,
+            })
+
+            if (expiries.length === 0) {
+              set({ isChainLoading: false })
+              return
+            }
+
+            const base = expiries.find((e) => e.daysToExpiry >= 20 && e.daysToExpiry <= 45) ?? expiries[0]
+            const contracts = await fetchOptionChain(symbol, base.date)
+            const chain = new Map<string, OptionContract[]>()
+            chain.set(base.date, contracts)
+
+            const nonZeroIvs = contracts.filter((c) => c.iv > 0)
+            const avgIv = nonZeroIvs.length > 0
+              ? nonZeroIvs.reduce((sum, c) => sum + c.iv, 0) / nonZeroIvs.length
+              : 0.3
+
+            set({
+              optionChain: chain,
+              selectedExpiry: base.date,
+              baseIV: avgIv,
+              isChainLoading: false,
+            })
+
+            get().loadStrategy(strategyKey)
+          } catch {
+            set({ isChainLoading: false })
+          }
+        },
+
+        changeExpiry: async (date) => {
+          const { ticker, optionChain } = get()
+          if (!optionChain.has(date) && ticker) {
+            set({ isChainLoading: true })
+            try {
+              const { fetchOptionChain } = await import('@/hooks/useApi')
+              const contracts = await fetchOptionChain(ticker, date)
+              const chain = new Map(get().optionChain)
+              chain.set(date, contracts)
+              useAppStore.setState({ optionChain: chain })
+            } catch (err) {
+              console.error('[changeExpiry] failed to load chain', err)
+            }
+            set({ isChainLoading: false })
+          }
+          get().migrateLegsToExpiry(date)
         },
       }),
       {

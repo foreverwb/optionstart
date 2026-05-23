@@ -205,10 +205,10 @@ export function BottomControls() {
           className="optionstart-range"
           type="range"
           min={1}
-          max={20}
+          max={49}
           value={rangePercent}
           onChange={(e) => setRangePercent(Number(e.target.value))}
-          style={sliderFillStyle(rangePercent, 1, 20, { flex: '1 1 360px', minWidth: 260 })}
+          style={sliderFillStyle(rangePercent, 1, 49, { flex: '1 1 360px', minWidth: 260 })}
         />
 
         <div style={dividerStyle} />
