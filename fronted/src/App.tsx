@@ -338,6 +338,11 @@ export default function App() {
   }, [legs, optionChain, reconcileLegStrikes])
 
   // ── Compute on change ────────────────────────────────────────────────────────
+  // NOTE: optionChain is NOT in the dependency array to avoid recomputing the
+  // entire chart on every WebSocket tick. During market hours, real-time quotes
+  // update optionChain 50+ times/sec — that must NOT trigger heavy worker
+  // recalculations (calcPnL / calcGreeks / calcCop). Instead we read optionChain
+  // from the store snapshot inside the effect and update unrealizedPnl separately.
   useEffect(() => {
     if (!stockPrice || legs.length === 0) {
       queueMicrotask(() => {
@@ -370,7 +375,8 @@ export default function App() {
     }).catch(() => { /* worker not ready */ })
 
     const activeLegInputs = input.legs
-    const unrealized = computeUnrealizedPnl(legs, stockPrice, optionChain, riskFreeRate, dividendYield, ivMultiplier, commissionPerContract)
+    const currentChain = useAppStore.getState().optionChain
+    const unrealized = computeUnrealizedPnl(legs, stockPrice, currentChain, riskFreeRate, dividendYield, ivMultiplier, commissionPerContract)
     if (activeLegInputs.length > 0) {
       const netDebit = activeLegInputs.reduce(
         (sum: number, l: PnLInput['legs'][number]) => sum + (l.isLong ? 1 : -1) * l.premium * l.quantity * l.lotSize,
@@ -419,9 +425,21 @@ export default function App() {
   }, [
     legs, stockPrice, riskFreeRate, rangePercent, dateProgress,
     dividendYield, ivMultiplier, commissionPerContract,
-    selectedExpiry, viewMode, optionChain,
+    selectedExpiry, viewMode,
     calcPnL, calcGreeks, calcCop, calcHeatmap, updateComputedStats,
   ])
+
+  // ── Lightweight unrealized PnL update on optionChain changes ────────────────
+  // This runs when real-time quotes update the chain (bid/ask) but does NOT
+  // trigger heavy worker recalculations.
+  useEffect(() => {
+    if (!stockPrice || legs.length === 0) return
+    const unrealized = computeUnrealizedPnl(legs, stockPrice, optionChain, riskFreeRate, dividendYield, ivMultiplier, commissionPerContract)
+    const prev = useAppStore.getState().computedStats
+    if (prev && Math.abs(prev.unrealizedPnl - unrealized) > 0.005) {
+      updateComputedStats({ ...prev, unrealizedPnl: unrealized })
+    }
+  }, [optionChain, stockPrice, legs, riskFreeRate, dividendYield, ivMultiplier, commissionPerContract, updateComputedStats])
 
   // ── Derived values ───────────────────────────────────────────────────────────
   const prices = buildPrices(stockPrice, rangePercent, 200)
