@@ -20,13 +20,10 @@ export function SaveTradePopover({ open, anchorRef, anchorRect, onClose, onToast
   const deleteSavedTrade = useAppStore((s) => s.deleteSavedTrade)
 
   useEffect(() => {
-    if (open) setName(null)
-  }, [open])
-
-  useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node) && !anchorRef.current?.contains(e.target as Node)) {
+        setName(null)
         onClose()
       }
     }

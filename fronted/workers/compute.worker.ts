@@ -4,6 +4,7 @@ import {
   calcPortfolioGreeks,
   calcCop,
   calcHeatmap,
+  calcHistoricalStrategy,
 } from '@/engine/bsm'
 import type { WorkerRequest, WorkerResponse } from '@/types/worker'
 
@@ -53,6 +54,17 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
         type: 'CALC_HEATMAP_RESULT',
         requestId: req.requestId,
         payload: calcHeatmap(input, priceRange, dates, priceSteps),
+      }
+      self.postMessage(res)
+      break
+    }
+
+    case 'CALC_HISTORICAL_STRATEGY': {
+      const { legs, bars, r, q } = req.payload
+      const res: WorkerResponse = {
+        type: 'CALC_HISTORICAL_STRATEGY_RESULT',
+        requestId: req.requestId,
+        payload: calcHistoricalStrategy(legs, bars, r, q),
       }
       self.postMessage(res)
       break

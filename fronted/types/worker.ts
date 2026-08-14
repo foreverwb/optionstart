@@ -1,4 +1,10 @@
-import type { PnLInput } from '@/engine/bsm'
+import type {
+  HeatmapData,
+  HistoricalStrategyBar,
+  HistoricalStrategyLeg,
+  HistoricalUnderlyingBar,
+  PnLInput,
+} from '@/engine/bsm'
 import type { Greeks, PnLPoint } from './index'
 
 // ──────── Requests ────────
@@ -45,11 +51,23 @@ export interface CalcHeatmapRequest {
   }
 }
 
+export interface CalcHistoricalStrategyRequest {
+  type: 'CALC_HISTORICAL_STRATEGY'
+  requestId: string
+  payload: {
+    legs: HistoricalStrategyLeg[]
+    bars: HistoricalUnderlyingBar[]
+    r: number
+    q: number
+  }
+}
+
 export type WorkerRequest =
   | CalcPnLRequest
   | CalcGreeksRequest
   | CalcCopRequest
   | CalcHeatmapRequest
+  | CalcHistoricalStrategyRequest
 
 // ──────── Responses ────────
 
@@ -74,7 +92,13 @@ export interface CopResponse {
 export interface HeatmapResponse {
   type: 'CALC_HEATMAP_RESULT'
   requestId: string
-  payload: number[][]
+  payload: HeatmapData
 }
 
-export type WorkerResponse = PnLResponse | GreeksResponse | CopResponse | HeatmapResponse
+export interface HistoricalStrategyResponse {
+  type: 'CALC_HISTORICAL_STRATEGY_RESULT'
+  requestId: string
+  payload: HistoricalStrategyBar[]
+}
+
+export type WorkerResponse = PnLResponse | GreeksResponse | CopResponse | HeatmapResponse | HistoricalStrategyResponse

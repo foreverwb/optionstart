@@ -42,7 +42,7 @@ function msUntilNextMarketEvent(): number {
     return (570 - minutes) * 60_000
   }
 
-  let daysUntilMonday = 0
+  let daysUntilMonday: number
   if (day === 5 && minutes >= 960) daysUntilMonday = 3
   else if (day === 6) daysUntilMonday = 2
   else if (day === 0) daysUntilMonday = 1

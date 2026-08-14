@@ -1,7 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query
 
-from models.schemas import SearchResult, StockQuote
+from models.schemas import HistoryRequest, HistoryResponse, SearchResult, StockQuote
 from services.futu_client import FutuUnavailableError, futu_client
+from services.history_service import history_service
 
 
 router = APIRouter(prefix="/api", tags=["stock"])
@@ -23,3 +24,11 @@ async def get_stock(ticker: str) -> StockQuote:
     except FutuUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return StockQuote.model_validate(row)
+
+
+@router.post("/history", response_model=HistoryResponse)
+async def get_history(payload: HistoryRequest) -> HistoryResponse:
+    try:
+        return await history_service.get_history(payload.codes, payload.timeframe)
+    except FutuUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc

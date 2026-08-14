@@ -1,11 +1,35 @@
 export type OptionType = 'call' | 'put'
 export type PositionSide = 'long' | 'short'
-export type DisplayMode = 'dollar' | 'pct' | 'risk' | 'contract'
+export type GreekDisplayMode = 'delta' | 'theta' | 'gamma' | 'vega' | 'rho'
+export type DisplayMode = 'dollar' | 'pct' | 'risk' | 'contract' | GreekDisplayMode
 export type ViewMode = 'chart' | 'table'
 export type AppPage = 'build' | 'saved'
 export type SavedTradeStatus = 'active' | 'expired' | 'closed'
 export type SavedTradeFilter = 'all' | SavedTradeStatus
 export type SavedTradeSortKey = 'recent' | 'ticker' | 'expiry' | 'pnl'
+export type HistoryTimeframe = '1d' | '1w' | '2w' | '1m' | '3m' | 'all'
+export type HistoryChartStyle = 'line' | 'candlestick'
+
+export interface HistoricalPriceBar {
+  timestamp: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+}
+
+export interface HistoricalPriceSeries {
+  code: string
+  interval: string
+  bars: HistoricalPriceBar[]
+}
+
+export interface HistoricalPriceResponse {
+  timeframe: HistoryTimeframe
+  series: HistoricalPriceSeries[]
+  cached: boolean
+}
 
 // ── Legacy type (kept for mock data compatibility) ──
 export interface OptionLeg {

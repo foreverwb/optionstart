@@ -7,7 +7,7 @@ import { TickerSearch } from './TickerSearch'
 import { AddPicker } from './AddPicker'
 import { PositionsDrawer } from './PositionsDrawer'
 import { SaveTradePopover } from './SaveTradePopover'
-import { HistoricalChartModal } from './HistoricalChartModal'
+import { HistoricalPriceModal } from '../HistoricalPrice/HistoricalPriceModal'
 import type { AppPage } from '../../types'
 
 interface TopBarProps {
@@ -172,7 +172,7 @@ export function TopBar({
         onClose={() => setSaveOpen(false)}
         onToast={handleToast}
       />
-      <HistoricalChartModal open={histOpen} onClose={() => setHistOpen(false)} />
+      <HistoricalPriceModal open={histOpen} onClose={() => setHistOpen(false)} />
     </>
   )
 }

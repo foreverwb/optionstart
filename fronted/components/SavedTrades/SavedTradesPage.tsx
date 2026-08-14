@@ -1,6 +1,6 @@
 import { useMemo, useEffect, useState } from 'react'
 import { useAppStore } from '../../store/useAppStore'
-import type { SavedTrade } from '../../types'
+import type { SavedTrade, SavedTradeFilter, SavedTradeSortKey } from '../../types'
 import {
   daysToExpiry,
   formatExpiry,

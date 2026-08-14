@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     option_chain_ttl_seconds: int = 300
     snapshot_ttl_seconds: int = 30
+    history_ttl_seconds: int = 60
     max_expiry_span_days: int = 30
     max_snapshot_codes: int = 400
     ws_heartbeat_interval_seconds: int = 30

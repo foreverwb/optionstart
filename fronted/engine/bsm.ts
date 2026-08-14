@@ -86,6 +86,36 @@ export interface PnLPoint {
   pnl: number
 }
 
+export interface HeatmapData {
+  pnl: number[][]
+  contractValue: number[][]
+  delta: number[][]
+  theta: number[][]
+  gamma: number[][]
+  vega: number[][]
+  rho: number[][]
+}
+
+export interface HistoricalStrategyLeg {
+  strike: number
+  quantity: number
+  isCall: boolean
+  isLong: boolean
+  expiry: string
+  iv: number
+}
+
+export interface HistoricalUnderlyingBar {
+  timestamp: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
+}
+
+export type HistoricalStrategyBar = HistoricalUnderlyingBar
+
 function yearFraction(from: string, to: string): number {
   return Math.max((new Date(to).getTime() - new Date(from).getTime()) / (365.25 * 86400_000), MIN_T)
 }
@@ -233,26 +263,132 @@ export function calcCop(input: PnLInput, _priceRange: [number, number]): number 
   return Math.max(0, Math.min(100, probability * 100))
 }
 
+interface HeatmapPoint {
+  pnl: number
+  contractValue: number
+  delta: number
+  theta: number
+  gamma: number
+  vega: number
+  rho: number
+}
+
+function intrinsicResult(S: number, leg: PnLInput['legs'][number]): BSMResult {
+  const intrinsic = leg.isCall ? Math.max(S - leg.strike, 0) : Math.max(leg.strike - S, 0)
+  const delta = leg.isCall ? (S > leg.strike ? 1 : 0) : (S < leg.strike ? -1 : 0)
+  return { price: intrinsic, delta, gamma: 0, theta: 0, vega: 0, rho: 0 }
+}
+
+function calcHeatmapPoint(input: PnLInput, date: string, S: number): HeatmapPoint {
+  const point: HeatmapPoint = {
+    pnl: 0, contractValue: 0, delta: 0, theta: 0, gamma: 0, vega: 0, rho: 0,
+  }
+  for (const leg of input.legs) {
+    const atExpiry = date >= leg.expiry
+    const result = atExpiry
+      ? intrinsicResult(S, leg)
+      : calcBSM({
+          S, K: leg.strike, T: yearFraction(date, leg.expiry), r: input.r,
+          q: input.q, sigma: leg.iv, isCall: leg.isCall,
+        })
+    const direction = leg.isLong ? 1 : -1
+    const greekScale = direction * leg.quantity * leg.lotSize
+    point.pnl += direction * (result.price - leg.premium) * leg.quantity * leg.lotSize
+      - input.commission * leg.quantity
+    point.contractValue += direction * result.price * leg.quantity
+    point.delta += result.delta * greekScale
+    point.gamma += result.gamma * greekScale
+    point.theta += result.theta * greekScale
+    point.vega += result.vega * greekScale
+    point.rho += result.rho * greekScale
+  }
+  return point
+}
+
 export function calcHeatmap(
   input: PnLInput,
   priceRange: [number, number],
   dates: string[],
-  priceSteps = 50,
-): number[][] {
+  pricePoints = 21,
+): HeatmapData {
   const [lo, hi] = priceRange
-  const step = (hi - lo) / priceSteps
+  const count = Math.max(2, Math.round(pricePoints))
+  const step = (hi - lo) / (count - 1)
+  const result: HeatmapData = {
+    pnl: [], contractValue: [], delta: [], theta: [], gamma: [], vega: [], rho: [],
+  }
 
-  return dates.map((date) =>
-    Array.from({ length: priceSteps + 1 }, (_, i) => {
-      const S = lo + i * step
-      let pnl = 0
-      for (const leg of input.legs) {
-        const T = yearFraction(date, leg.expiry)
-        const bsm = calcBSM({ S, K: leg.strike, T, r: input.r, q: input.q, sigma: leg.iv, isCall: leg.isCall })
-        pnl += (leg.isLong ? 1 : -1) * (bsm.price - leg.premium) * leg.quantity * leg.lotSize
-          - input.commission * leg.quantity
-      }
-      return parseFloat(pnl.toFixed(2))
-    }),
+  for (const date of dates) {
+    const points = Array.from({ length: count }, (_, i) =>
+      calcHeatmapPoint(input, date, lo + i * step),
+    )
+    for (const metric of Object.keys(result) as Array<keyof HeatmapData>) {
+      result[metric].push(points.map((point) => parseFloat(point[metric].toFixed(4))))
+    }
+  }
+  return result
+}
+
+function historicalLegValue(
+  leg: HistoricalStrategyLeg,
+  underlyingPrice: number,
+  timestamp: string,
+  r: number,
+  q: number,
+): number {
+  const evaluationDate = timestamp.slice(0, 10)
+  const intrinsic = leg.isCall
+    ? Math.max(underlyingPrice - leg.strike, 0)
+    : Math.max(leg.strike - underlyingPrice, 0)
+  const optionValue = evaluationDate >= leg.expiry
+    ? intrinsic
+    : calcBSM({
+        S: underlyingPrice,
+        K: leg.strike,
+        T: yearFraction(evaluationDate, leg.expiry),
+        r,
+        q,
+        sigma: Math.max(leg.iv, 0.0001),
+        isCall: leg.isCall,
+      }).price
+  return (leg.isLong ? 1 : -1) * leg.quantity * optionValue
+}
+
+function historicalStrategyValue(
+  legs: HistoricalStrategyLeg[],
+  underlyingPrice: number,
+  timestamp: string,
+  r: number,
+  q: number,
+): number {
+  return legs.reduce(
+    (total, leg) => total + historicalLegValue(leg, underlyingPrice, timestamp, r, q),
+    0,
   )
+}
+
+export function calcHistoricalStrategy(
+  legs: HistoricalStrategyLeg[],
+  bars: HistoricalUnderlyingBar[],
+  r: number,
+  q: number,
+): HistoricalStrategyBar[] {
+  return bars.map((bar) => {
+    const open = historicalStrategyValue(legs, bar.open, bar.timestamp, r, q)
+    const close = historicalStrategyValue(legs, bar.close, bar.timestamp, r, q)
+    const samples = [
+      open,
+      close,
+      historicalStrategyValue(legs, bar.high, bar.timestamp, r, q),
+      historicalStrategyValue(legs, bar.low, bar.timestamp, r, q),
+    ]
+    return {
+      timestamp: bar.timestamp,
+      open: parseFloat(open.toFixed(4)),
+      high: parseFloat(Math.max(...samples).toFixed(4)),
+      low: parseFloat(Math.min(...samples).toFixed(4)),
+      close: parseFloat(close.toFixed(4)),
+      volume: 0,
+    }
+  })
 }

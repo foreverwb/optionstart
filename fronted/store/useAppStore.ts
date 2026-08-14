@@ -240,17 +240,32 @@ export function reconcileLegStrikesWithChain(
   })
 }
 
-/** Auto-range based on days to expiry: nearer expiry → tighter range */
-function autoRangePercent(dte: number): number {
-  if (dte <= 0) return 3
-  if (dte <= 1) return 4
-  if (dte <= 3) return 5
-  if (dte <= 7) return 6
-  if (dte <= 14) return 7
-  if (dte <= 30) return 8
-  if (dte <= 60) return 10
-  if (dte <= 120) return 13
-  return 15
+/** One-standard-deviation expected move, matching OptionStrat's initial table range. */
+export function autoRangePercent(dte: number, iv: number): number {
+  const normalizedIv = Number.isFinite(iv) && iv > 0 ? iv : 0.3
+  const expectedMove = normalizedIv * Math.sqrt(Math.max(dte, 1) / 365.25) * 100
+  return Math.max(1, Math.min(49, Math.round(expectedMove * 10) / 10))
+}
+
+export function strategyImpliedVolatility(legs: Leg[], fallbackIv: number): number {
+  const activeLegs = legs.filter((leg) => !leg.excluded && Number.isFinite(leg.iv) && leg.iv > 0)
+  const weighted = activeLegs.reduce(
+    (result, leg) => {
+      const weight = Math.max(1, leg.quantity * leg.lotSize)
+      return { value: result.value + leg.iv * weight, weight: result.weight + weight }
+    },
+    { value: 0, weight: 0 },
+  )
+  return weighted.weight > 0 ? weighted.value / weighted.weight : fallbackIv
+}
+
+function daysToExpiry(expiry: string): number {
+  const today = new Date().toISOString().slice(0, 10)
+  return Math.max(0, Math.round((new Date(expiry).getTime() - new Date(today).getTime()) / 86_400_000))
+}
+
+function rangeForStrategy(legs: Leg[], expiry: string, fallbackIv: number): number {
+  return autoRangePercent(daysToExpiry(expiry), strategyImpliedVolatility(legs, fallbackIv))
 }
 
 function priceLeg(
@@ -554,16 +569,23 @@ export const useAppStore = create<AppState>()(
         },
 
         setSelectedExpiry: (date) => {
-          const today = new Date().toISOString().slice(0, 10)
-          const dte = Math.max(0, Math.round((new Date(date).getTime() - new Date(today).getTime()) / 86_400_000))
-          set({ selectedExpiry: date, dateProgress: 1, computedStats: null, rangePercent: autoRangePercent(dte) })
+          const state = get()
+          set({
+            selectedExpiry: date,
+            dateProgress: 1,
+            computedStats: null,
+            rangePercent: rangeForStrategy(state.legs, date, state.baseIV),
+          })
         },
 
         migrateLegsToExpiry: (date) =>
           set((s) => {
-            const today = new Date().toISOString().slice(0, 10)
-            const dte = Math.max(0, Math.round((new Date(date).getTime() - new Date(today).getTime()) / 86_400_000))
-            if (s.legs.length === 0) return { selectedExpiry: date, dateProgress: 1, computedStats: null, rangePercent: autoRangePercent(dte) }
+            if (s.legs.length === 0) return {
+              selectedExpiry: date,
+              dateProgress: 1,
+              computedStats: null,
+              rangePercent: rangeForStrategy([], date, s.baseIV),
+            }
             const legs = s.legs.map((l) => {
               const strike = resolveStrike(s.optionChain, date, l.optionType, l.strike)
               const updated = { ...l, expiry: date, strike }
@@ -573,7 +595,13 @@ export const useAppStore = create<AppState>()(
               if (contract?.iv) updated.iv = contract.iv
               return updated
             })
-            return { selectedExpiry: date, dateProgress: 1, legs, computedStats: null, rangePercent: autoRangePercent(dte) }
+            return {
+              selectedExpiry: date,
+              dateProgress: 1,
+              legs,
+              computedStats: null,
+              rangePercent: rangeForStrategy(legs, date, s.baseIV),
+            }
           }),
 
         setSelectedLegId: (id) => set({ selectedLegId: id }),
@@ -602,12 +630,21 @@ export const useAppStore = create<AppState>()(
             lotSize,
             excluded: false,
           }
-          set((s) => ({ legs: [...s.legs, leg], selectedLegId: leg.id, currentSavedTradeId: null }))
+          set((s) => {
+            const legs = [...s.legs, leg]
+            return {
+              legs,
+              selectedLegId: leg.id,
+              currentSavedTradeId: null,
+              rangePercent: rangeForStrategy(legs, expiry, s.baseIV),
+            }
+          })
         },
 
         updateLeg: (id, partial) =>
           set((s) => {
             let structureChanged = false
+            const rangeInputChanged = partial.quantity !== undefined || partial.iv !== undefined
             const legs = s.legs.map((l) => {
               if (l.id !== id) return l
               const updated = { ...l, ...partial }
@@ -626,6 +663,15 @@ export const useAppStore = create<AppState>()(
             })
             return {
               legs,
+              ...(structureChanged || rangeInputChanged
+                ? {
+                    rangePercent: rangeForStrategy(
+                      legs,
+                      tradeExpiry(legs) ?? s.selectedExpiry ?? new Date().toISOString().slice(0, 10),
+                      s.baseIV,
+                    ),
+                  }
+                : {}),
               ...(structureChanged && s.currentSavedTradeId ? { currentSavedTradeId: null } : {}),
             }
           }),
@@ -650,16 +696,23 @@ export const useAppStore = create<AppState>()(
           })),
 
         removeLeg: (id) =>
-          set((s) => ({
-            legs: s.legs.filter((l) => l.id !== id),
-            selectedLegId: s.selectedLegId === id ? null : s.selectedLegId,
-            currentSavedTradeId: null,
-          })),
+          set((s) => {
+            const legs = s.legs.filter((l) => l.id !== id)
+            const expiry = tradeExpiry(legs) ?? s.selectedExpiry ?? new Date().toISOString().slice(0, 10)
+            return {
+              legs,
+              selectedLegId: s.selectedLegId === id ? null : s.selectedLegId,
+              currentSavedTradeId: null,
+              rangePercent: rangeForStrategy(legs, expiry, s.baseIV),
+            }
+          }),
 
         toggleLegExcluded: (id) =>
-          set((s) => ({
-            legs: s.legs.map((l) => (l.id === id ? { ...l, excluded: !l.excluded } : l)),
-          })),
+          set((s) => {
+            const legs = s.legs.map((l) => (l.id === id ? { ...l, excluded: !l.excluded } : l))
+            const expiry = tradeExpiry(legs) ?? s.selectedExpiry ?? new Date().toISOString().slice(0, 10)
+            return { legs, rangePercent: rangeForStrategy(legs, expiry, s.baseIV) }
+          }),
 
         loadStrategy: (templateKey) => {
           const template = STRATEGIES[templateKey]
@@ -704,6 +757,7 @@ export const useAppStore = create<AppState>()(
             currentSavedTradeId: null,
             activeStrategyKey: templateKey,
             computedStats: null,
+            rangePercent: rangeForStrategy(legs, legs[0]?.expiry ?? base.date, baseIV),
           })
         },
 
@@ -711,7 +765,7 @@ export const useAppStore = create<AppState>()(
 
         setRangePercent: (value) => set({ rangePercent: Math.max(1, Math.min(49, value)) }),
 
-        setIvMultiplier: (value) => set({ ivMultiplier: Math.max(0.5, Math.min(3.0, value)) }),
+        setIvMultiplier: (value) => set({ ivMultiplier: Math.max(0.1, Math.min(3.0, value)) }),
 
         setDisplayMode: (mode) => set({ displayMode: mode }),
 
@@ -920,9 +974,6 @@ export const useAppStore = create<AppState>()(
           const trade = get().savedTrades.find((savedTrade) => savedTrade.id === id)
           if (!trade) return
           const today = new Date().toISOString().slice(0, 10)
-          const dte = trade.expiry
-            ? Math.max(0, Math.round((new Date(trade.expiry).getTime() - new Date(today).getTime()) / 86_400_000))
-            : 30
           set({
             ticker: trade.ticker,
             stockPrice: trade.stockPrice,
@@ -933,7 +984,7 @@ export const useAppStore = create<AppState>()(
             computedStats: null,
             currentSavedTradeId: trade.id,
             appPage: 'build',
-            rangePercent: autoRangePercent(dte),
+            rangePercent: rangeForStrategy(trade.legs, trade.expiry ?? today, 0.3),
           })
           try {
             const { fetchExpiries, fetchOptionChain, fetchStockQuote } = await import('@/hooks/useApi')

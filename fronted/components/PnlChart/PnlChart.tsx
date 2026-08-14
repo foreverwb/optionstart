@@ -457,9 +457,9 @@ export function PnlChart({
     }
 
     // Segment color callback for green/red/orange based on zero crossing
-    const segmentColor = (ctx: { p0: { parsed: { y: number } }; p1: { parsed: { y: number } } }, colorPos: string, colorNeg: string, colorMix: string) => {
-      const y0 = ctx.p0.parsed.y
-      const y1 = ctx.p1.parsed.y
+    const segmentColor = (ctx: { p0: { parsed: { y: number | null } }; p1: { parsed: { y: number | null } } }, colorPos: string, colorNeg: string, colorMix: string) => {
+      const y0 = ctx.p0.parsed.y ?? 0
+      const y1 = ctx.p1.parsed.y ?? 0
       if (y0 == null || y1 == null) return colorPos
       if (y0 >= 0 && y1 >= 0) return colorPos
       if (y0 < 0 && y1 < 0) return colorNeg

@@ -4,7 +4,7 @@ import { useAppRoute } from '../hooks/useAppRoute'
 import { useComputeWorker } from '../hooks/useComputeWorker'
 import { useRealtimeQuotes } from '../hooks/useRealtimeQuotes'
 import { calcBSM } from '../engine/bsm'
-import type { PnLInput, PnLPoint } from '../engine/bsm'
+import type { HeatmapData, PnLInput, PnLPoint } from '../engine/bsm'
 import type { Greeks, Leg, OptionContract } from '../types'
 
 import { TopBar } from '../components/TopBar/TopBar'
@@ -26,6 +26,8 @@ const MAX_REALTIME_OPTION_CODES = 399
 // The slider only clips the visible portion from this pre-computed curve.
 const COMPUTE_RANGE_PCT = 52
 const COMPUTE_STEPS = 500
+const HEAT_PRICE_POINTS = 21
+const HEAT_DATE_POINTS = 20
 
 interface ToastMessage {
   id: number
@@ -100,20 +102,44 @@ function buildPrices(stockPrice: number, rangePercent: number, steps = 16): numb
   )
 }
 
+function buildHeatPrices(stockPrice: number, rangePercent: number): number[] {
+  return buildPrices(stockPrice, rangePercent, HEAT_PRICE_POINTS).reverse()
+}
+
+function isoDate(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}
+
 function buildHeatCols(selectedExpiry: string | null): ColDef[] {
   if (!selectedExpiry) return []
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const expiry = new Date(selectedExpiry + 'T00:00:00')
-  const totalMs = expiry.getTime() - today.getTime()
-  const STEPS = 9
-  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  return Array.from({ length: STEPS }, (_, i) => {
-    const frac = i / (STEPS - 1)
-    const dt = new Date(today.getTime() + totalMs * frac)
-    const label = i === 0 ? 'Today' : i === STEPS - 1 ? 'Expiry' : `${MONTHS[dt.getMonth()]} ${dt.getDate()}`
-    return { frac, label, isEarnings: false }
-  })
+  const today = new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`)
+  const expiry = new Date(`${selectedExpiry}T00:00:00Z`)
+  const totalMs = Math.max(1, expiry.getTime() - today.getTime())
+  const candidates: Date[] = []
+  for (let time = today.getTime(); time <= expiry.getTime(); time += 86_400_000) {
+    const date = new Date(time)
+    const day = date.getUTCDay()
+    if ((day !== 0 && day !== 6) || time === expiry.getTime()) candidates.push(date)
+  }
+  if (!candidates.length) candidates.push(expiry)
+  const count = Math.min(HEAT_DATE_POINTS, candidates.length)
+  const selected = Array.from({ length: count }, (_, index) =>
+    candidates[Math.round(index * (candidates.length - 1) / Math.max(1, count - 1))],
+  )
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const weekdays = ['S','M','T','W','Th','F','S']
+  return selected.map((date) => ({
+    frac: Math.min(1, Math.max(0, (date.getTime() - today.getTime()) / totalMs)),
+    date: isoDate(date),
+    monthLabel: `${months[date.getUTCMonth()]}${date.getUTCFullYear() !== today.getUTCFullYear() ? ` '${String(date.getUTCFullYear()).slice(2)}` : ''}`,
+    dayLabel: String(date.getUTCDate()),
+    weekday: weekdays[date.getUTCDay()],
+    isEarnings: false,
+  }))
+}
+
+function emptyHeatmap(): HeatmapData {
+  return { pnl: [], contractValue: [], delta: [], theta: [], gamma: [], vega: [], rho: [] }
 }
 
 function legsToInput(
@@ -218,13 +244,6 @@ function estimateExpiryStats(input: PnLInput): Pick<NonNullable<ReturnType<typeo
   }
 }
 
-function closestPnl(points: PnLPoint[], stockPrice: number): number {
-  if (points.length === 0) return 0
-  return points.reduce((best, point) =>
-    Math.abs(point.price - stockPrice) < Math.abs(best.price - stockPrice) ? point : best,
-  ).pnl
-}
-
 const MIN_T = 1 / (365.25 * 24)
 
 function computeUnrealizedPnl(
@@ -283,6 +302,7 @@ export default function App() {
   const savedTradesChainKey = useAppStore((s) => [...s.savedTradesChain.keys()].sort().join('|'))
 
   const realtimeCodes = useMemo(() => {
+    void savedTradesChainKey
     const codes = new Set<string>()
     if (appPage === 'build') {
       if (ticker) codes.add(`US.${ticker}`)
@@ -315,7 +335,8 @@ export default function App() {
   const [fullPnlPoints, setFullPnlPoints] = useState<number[]>([])
   const [fullExpiryPnlPoints, setFullExpiryPnlPoints] = useState<number[]>([])
   const fullPricesRef = useRef<number[]>([])
-  const [heatMatrix, setHeatMatrix] = useState<number[][]>([])
+  const [heatData, setHeatData] = useState<HeatmapData>(emptyHeatmap)
+  const [renderedHeatRange, setRenderedHeatRange] = useState(rangePercent)
 
   useAppRoute({
     appPage,
@@ -362,7 +383,7 @@ export default function App() {
         setFullPnlPoints([])
         setFullExpiryPnlPoints([])
         fullPricesRef.current = []
-        setHeatMatrix([])
+        setHeatData(emptyHeatmap())
       })
       return
     }
@@ -406,7 +427,7 @@ export default function App() {
         cop: prev?.cop ?? 0,
         breakevens: expiryStats.breakevens,
         unrealizedPnl: unrealized,
-        netGreeks: prev?.netGreeks ?? { delta: 0, gamma: 0, theta: 0, vega: 0, rho: 0 },
+        netGreeks: prev?.netGreeks ?? { delta: 0, gamma: 0, theta: 0, vega: 0, rho: 0, iv: 0 },
       })
       Promise.all([
         calcGreeks(activeLegInputs, stockPrice, riskFreeRate, dividendYield),
@@ -425,25 +446,32 @@ export default function App() {
       }).catch(() => { /* worker not ready */ })
     }
 
-    if (viewMode === 'table' && selectedExpiry) {
-      const currentRange = useAppStore.getState().rangePercent
-      const heatRange = buildPriceRange(stockPrice, currentRange)
-      const cols = buildHeatCols(selectedExpiry)
-      const today = new Date().toISOString().slice(0, 10)
-      const t0 = new Date(today).getTime()
-      const t1 = new Date(selectedExpiry + 'T00:00:00').getTime()
-      const dates = cols.map((c) =>
-        new Date(t0 + (t1 - t0) * c.frac).toISOString().slice(0, 10),
-      )
-      calcHeatmap(input, heatRange, dates, 16).then((matrix: number[][]) => {
-        setHeatMatrix(matrix)
-      }).catch(() => { /* worker not ready */ })
-    }
   }, [
     legs, stockPrice, riskFreeRate, dateProgress,
     dividendYield, ivMultiplier, commissionPerContract,
-    selectedExpiry, viewMode,
-    calcPnL, calcGreeks, calcCop, calcHeatmap, updateComputedStats,
+    selectedExpiry,
+    calcPnL, calcGreeks, calcCop, updateComputedStats,
+  ])
+
+  useEffect(() => {
+    if (!selectedExpiry || !stockPrice || legs.length === 0) return
+    const input = legsToInput(
+      legs, stockPrice, riskFreeRate, dividendYield, ivMultiplier,
+      commissionPerContract, dateProgress, selectedExpiry,
+    )
+    const cols = buildHeatCols(selectedExpiry)
+    let cancelled = false
+    calcHeatmap(input, buildPriceRange(stockPrice, rangePercent), cols.map((col) => col.date), HEAT_PRICE_POINTS)
+      .then((result) => {
+        if (cancelled) return
+        setHeatData(result)
+        setRenderedHeatRange(rangePercent)
+      })
+      .catch(() => { /* worker not ready */ })
+    return () => { cancelled = true }
+  }, [
+    selectedExpiry, stockPrice, legs, riskFreeRate, dividendYield,
+    ivMultiplier, commissionPerContract, dateProgress, rangePercent, calcHeatmap,
   ])
 
   // ── Lightweight unrealized PnL update on optionChain changes ────────────────
@@ -485,7 +513,7 @@ export default function App() {
     }
   }, [fullPnlPoints, fullExpiryPnlPoints, stockPrice, rangePercent])
 
-  const heatPrices = buildPrices(stockPrice, rangePercent, 16)
+  const heatPrices = buildHeatPrices(stockPrice, renderedHeatRange)
   const heatCols = buildHeatCols(selectedExpiry)
   const selectedDateDte = useMemo(() => {
     if (!selectedExpiry) return 0
@@ -505,9 +533,10 @@ export default function App() {
     }
   }, [stockPrice, selectedDateDte, baseIV, ivMultiplier, riskFreeRate, dividendYield])
 
-  const costBasis = legs
+  const longCostBasis = legs
     .filter((l) => !l.excluded && l.direction === 'long')
     .reduce((s: number, l: Leg) => s + l.costBasis * l.quantity * l.lotSize, 0)
+  const costBasis = Math.abs(computedStats?.netDebit ?? longCostBasis)
   const maxLoss = (computedStats?.maxLoss ?? 0) > 0 ? (computedStats?.maxLoss ?? 0) : (Math.abs(costBasis) || 1)
 
   return (
@@ -571,15 +600,11 @@ export default function App() {
               <HeatTable
                 prices={heatPrices}
                 cols={heatCols}
-                matrix={heatMatrix}
+                data={heatData}
                 stockPrice={stockPrice}
                 displayMode={displayMode}
                 costBasis={costBasis}
                 maxLoss={maxLoss}
-                onColClick={(frac: number) => {
-                  useAppStore.getState().setDateProgress(frac)
-                  useAppStore.getState().setViewMode('chart')
-                }}
               />
             )}
           </div>

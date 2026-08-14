@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import type { PnLInput } from '@/engine/bsm'
+import type { HistoricalStrategyLeg, HistoricalUnderlyingBar, PnLInput } from '@/engine/bsm'
 import type {
   WorkerRequest,
   WorkerResponse,
@@ -7,6 +7,7 @@ import type {
   GreeksResponse,
   CopResponse,
   HeatmapResponse,
+  HistoricalStrategyResponse,
 } from '@/types/worker'
 
 // ──────── Module-level singleton ────────
@@ -153,5 +154,15 @@ export function useComputeWorker() {
     [postDebounced],
   )
 
-  return { calcPnL, calcGreeks, calcCop, calcHeatmap, isComputing }
+  const calcHistoricalStrategy = useCallback(
+    (legs: HistoricalStrategyLeg[], bars: HistoricalUnderlyingBar[], r: number, q: number) =>
+      postDebounced<HistoricalStrategyResponse['payload']>({
+        type: 'CALC_HISTORICAL_STRATEGY',
+        requestId: genId(),
+        payload: { legs, bars, r, q },
+      }),
+    [postDebounced],
+  )
+
+  return { calcPnL, calcGreeks, calcCop, calcHeatmap, calcHistoricalStrategy, isComputing }
 }

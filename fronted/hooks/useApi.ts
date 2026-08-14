@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useAppStore } from '@/store/useAppStore'
-import type { ExpiryDate, OptionContract } from '@/types'
+import type { ExpiryDate, HistoricalPriceResponse, HistoryTimeframe, OptionContract } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8018/api'
 
@@ -55,8 +55,8 @@ function normalizeVolatility(value: number | null | undefined): number {
   return value > 3 ? value / 100 : value
 }
 
-async function apiFetch<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`)
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, init)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`API ${res.status}: ${body}`)
@@ -70,6 +70,19 @@ export async function searchTickers(query: string): Promise<SearchResult[]> {
 
 export async function fetchStockQuote(ticker: string): Promise<StockQuoteResponse> {
   return apiFetch<StockQuoteResponse>(`/stock/${encodeURIComponent(ticker)}`)
+}
+
+export async function fetchPriceHistory(
+  codes: string[],
+  timeframe: HistoryTimeframe,
+  signal?: AbortSignal,
+): Promise<HistoricalPriceResponse> {
+  return apiFetch<HistoricalPriceResponse>('/history', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ codes, timeframe }),
+    signal,
+  })
 }
 
 export async function fetchExpiries(ticker: string): Promise<ExpiryDate[]> {
@@ -126,9 +139,9 @@ export function useSelectTicker() {
     useAppStore.setState({
       expiryDates: expiries,
       optionChain: chain,
-      selectedExpiry: base.date,
       baseIV: avgIv,
     })
+    useAppStore.getState().setSelectedExpiry(base.date)
 
     addLeg('call', 'long')
   }, [setTicker, addLeg])

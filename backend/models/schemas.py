@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 OptionType = Literal["call", "put"]
 PositionSide = Literal["long", "short"]
 SavedTradeStatus = Literal["active", "expired", "closed"]
+HistoryTimeframe = Literal["1d", "1w", "2w", "1m", "3m", "all"]
 
 
 class ErrorResponse(BaseModel):
@@ -31,6 +32,40 @@ class StockQuote(BaseModel):
     volume: int | None = None
     turnover: float | None = None
     updated_at: datetime
+
+
+class HistoryBar(BaseModel):
+    timestamp: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int = 0
+
+
+class HistorySeries(BaseModel):
+    code: str
+    interval: str
+    bars: list[HistoryBar]
+
+
+class HistoryRequest(BaseModel):
+    codes: list[str] = Field(min_length=1, max_length=20)
+    timeframe: HistoryTimeframe
+
+    @field_validator("codes")
+    @classmethod
+    def normalize_codes(cls, value: list[str]) -> list[str]:
+        codes = list(dict.fromkeys(code.strip().upper() for code in value if code.strip()))
+        if not codes:
+            raise ValueError("At least one non-empty code is required")
+        return codes
+
+
+class HistoryResponse(BaseModel):
+    timeframe: HistoryTimeframe
+    series: list[HistorySeries]
+    cached: bool
 
 
 class Expiry(BaseModel):

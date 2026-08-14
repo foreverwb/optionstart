@@ -1,13 +1,17 @@
 import asyncio
+import re
 from datetime import datetime, timezone
 from collections.abc import Callable
 from typing import Protocol
 
 from config import get_settings
+from services.search_service import compact_ticker, rank_search_rows
 
 try:
-    from moomoo import Market, OpenQuoteContext, OptionType as FutuOptionType, RET_OK, StockQuoteHandlerBase, SubType
+    from moomoo import AuType, KLType, Market, OpenQuoteContext, OptionType as FutuOptionType, RET_OK, StockQuoteHandlerBase, SubType
 except ImportError:  # pragma: no cover - dependency may be absent in local compile checks
+    AuType = None
+    KLType = None
     Market = None
     OpenQuoteContext = None
     FutuOptionType = None
@@ -45,10 +49,6 @@ def normalize_ticker(ticker: str) -> str:
     return symbol if "." in symbol else f"US.{symbol}"
 
 
-def compact_ticker(code: str) -> str:
-    return code.split(".", 1)[1] if "." in code else code
-
-
 class FutuClient:
     def __init__(self) -> None:
         self.settings = get_settings()
@@ -82,17 +82,7 @@ class FutuClient:
         for sec_type in ("STOCK", "ETF"):
             ret, data = await asyncio.to_thread(ctx.get_stock_basicinfo, Market.US, sec_type)
             all_rows.extend(self._rows_or_raise(ret, data))
-        q = query.strip().upper()
-        matches = [
-            {
-                "ticker": compact_ticker(str(row.get("code", ""))),
-                "name": str(row.get("name", "")),
-                "market": "US",
-            }
-            for row in all_rows
-            if q in str(row.get("code", "")).upper() or q in str(row.get("name", "")).upper()
-        ]
-        return matches[:20]
+        return rank_search_rows(all_rows, query)
 
     async def get_stock_quote(self, ticker: str) -> dict[str, object]:
         code = normalize_ticker(ticker)
@@ -131,6 +121,33 @@ class FutuClient:
     async def get_market_snapshot(self, codes: list[str]) -> list[dict[str, object]]:
         ctx = self.ensure_context()
         ret, data = await asyncio.to_thread(ctx.get_market_snapshot, codes)
+        return self._rows_or_raise(ret, data)
+
+    async def get_history_kline(
+        self,
+        code: str,
+        start: str,
+        end: str,
+        interval: str,
+        max_count: int,
+    ) -> list[dict[str, object]]:
+        ctx = self.ensure_context()
+        if KLType is None or AuType is None:
+            raise FutuUnavailableError("moomoo history enums are unavailable")
+        ktype = getattr(KLType, interval, None)
+        if ktype is None:
+            raise FutuUnavailableError(f"Unsupported history interval: {interval}")
+        autype = AuType.NONE if self._is_option_code(code) else AuType.QFQ
+        ret, data, _ = await asyncio.to_thread(
+            ctx.request_history_kline,
+            code=code,
+            start=start,
+            end=end,
+            ktype=ktype,
+            autype=autype,
+            max_count=max_count,
+            extended_time=False,
+        )
         return self._rows_or_raise(ret, data)
 
     async def subscribe_quotes(self, codes: list[str]) -> None:
@@ -183,6 +200,11 @@ class FutuClient:
             return int(value)
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _is_option_code(code: str) -> bool:
+        symbol = code.rsplit(".", 1)[-1]
+        return re.fullmatch(r"[A-Z.]+\d{6}[CP]\d+", symbol) is not None
 
 
 futu_client = FutuClient()
